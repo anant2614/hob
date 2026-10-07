@@ -46,7 +46,13 @@ const SCHEMA = [
     conversation TEXT NOT NULL,
     host TEXT NOT NULL,
     PRIMARY KEY (conversation, host)
-  )`
+  )`,
+  `CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`,
+  // The version of the app_* tables, for the first migration to read.
+  `INSERT OR IGNORE INTO app_meta (key, value) VALUES ('schema', '1')`
 ];
 
 type MemoryRow = { key: string; text: string; source: string; tainted: number; updated_at: number };
@@ -162,6 +168,20 @@ export class AppStore {
             }`
         )
         .join("\n");
+    }
+  };
+
+  /** Small settings, such as the schema version and the model last applied to the conversation. */
+  readonly meta = {
+    get: (key: string): string | undefined =>
+      this.#sql.exec<{ value: string }>("SELECT value FROM app_meta WHERE key = ?", key).toArray()[0]?.value,
+
+    set: (key: string, value: string): void => {
+      this.#sql.exec(
+        "INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        key,
+        value
+      );
     }
   };
 

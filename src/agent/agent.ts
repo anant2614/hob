@@ -19,6 +19,8 @@ import { Watches } from "./watches";
 const OPEN = 1;
 /** Close code for a connection to a conversation this agent does not have. */
 const UNKNOWN_CONVERSATION = 4404;
+/** app_meta key: the model last applied to the conversation, as `provider/id`. */
+const APPLIED_MODEL = "model";
 
 function send(socket: WebSocket, message: ServerMessage): void {
   if (socket.readyState !== OPEN) return;
@@ -64,7 +66,11 @@ export class PiAgent extends Agent<Env> {
     this.store.onChange((change) => this.#broadcast(change));
   }
 
-  /** Where model calls go: AI Gateway over the AI binding. Tests substitute a scripted model. */
+  /**
+   * Where model calls go: AI Gateway over the AI binding. Tests substitute a
+   * scripted model. Called from a field initializer, before a subclass's own
+   * fields exist, so an override may use `this.env` and `this.ctx` only.
+   */
   protected modelSource(): ModelSource {
     return {
       kind: "gateway",
@@ -90,6 +96,12 @@ export class PiAgent extends Agent<Env> {
     return true;
   }
 
+  // Hob has no sub-agents. The edge forwards only the exact /chat path, and
+  // this refuses /sub/<class>/<name> routing should anything else reach here.
+  override async onBeforeSubAgent(): Promise<Response> {
+    return new Response("Not found", { status: 404 });
+  }
+
   override async onStart(): Promise<void> {
     // Watches live in memory: give sockets that outlived the last isolate a new one.
     // One socket's failure must not fail the object's startup.
@@ -100,8 +112,12 @@ export class PiAgent extends Agent<Env> {
         send(connection, { type: "error", message: `Couldn't reload the conversation: ${errorMessage(error)}` });
       }
     }
+    // Pi keeps the model with the conversation. Checking it reads a whole
+    // snapshot, so only do that when MODEL_ID changed since the last start.
+    if (this.store.meta.get(APPLIED_MODEL) === this.pi.modelName) return;
     try {
       await this.pi.syncModel();
+      this.store.meta.set(APPLIED_MODEL, this.pi.modelName);
     } catch (error) {
       console.error("Could not apply MODEL_ID to the conversation", error);
     }

@@ -21,6 +21,10 @@ export class SqlTestObject extends DurableObject {}
 export const GATE_RUNS = "test:gate:runs";
 export const GATE_RELEASE = "test:gate:release";
 export const CONNECT_HEADERS = "test:connect:headers";
+/** The model id this object is "deployed" with; tests change it to simulate a new MODEL_ID. */
+export const TEST_MODEL = "test:model";
+/** How many times the agent has run syncModel. */
+export const SYNC_RUNS = "test:sync:runs";
 
 function textOf(content: Message["content"] | undefined): string {
   if (content === undefined) return "";
@@ -85,10 +89,24 @@ function gateTool(storage: DurableObjectStorage): ToolSpec<Record<string, never>
 
 /** Hob's real agent, with the scripted model, a fake web and a test gate tool. */
 export class PiAgent extends HobAgent {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    const sync = this.pi.syncModel;
+    (this.pi as { syncModel: () => Promise<void> }).syncModel = () => {
+      ctx.storage.kv.put(SYNC_RUNS, (ctx.storage.kv.get<number>(SYNC_RUNS) ?? 0) + 1);
+      return sync();
+    };
+  }
+
   protected override modelSource(): ModelSource {
-    const faux = fauxProvider({ tokensPerSecond: 2000, tokenSize: { min: 4, max: 8 } });
+    const faux = fauxProvider({
+      models: [{ id: "faux-1" }, { id: "faux-2" }],
+      tokensPerSecond: 2000,
+      tokenSize: { min: 4, max: 8 }
+    });
     faux.setResponses(Array.from({ length: 500 }, () => script));
-    return { kind: "provider", provider: faux.provider, model: faux.getModel() };
+    const id = this.ctx.storage.kv.get<string>(TEST_MODEL) ?? "faux-1";
+    return { kind: "provider", provider: faux.provider, model: faux.getModel(id) ?? faux.getModel() };
   }
 
   protected override tools(): ToolSpec[] {

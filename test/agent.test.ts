@@ -2,7 +2,7 @@ import { abortAllDurableObjects, evictDurableObject, runDurableObjectAlarm, runI
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { connectAgent, eventTypes, lastOf, transcript, type Client } from "./ws";
-import { GATE_RELEASE, GATE_RUNS } from "./worker";
+import { GATE_RELEASE, GATE_RUNS, SYNC_RUNS, TEST_MODEL } from "./worker";
 
 function kv<T>(name: string, key: string): Promise<T | undefined> {
   return runInDurableObject(env.PiAgent.getByName(name), (_instance, state) => state.storage.kv.get<T>(key));
@@ -64,6 +64,20 @@ describe("a connected client", () => {
     expect(await closed).toBe(4404);
   });
 
+  it("refuses a socket addressed to a sub-agent, behind the edge's path check", async () => {
+    const response = await env.PiAgent.getByName(crypto.randomUUID()).fetch(
+      new Request("http://localhost/chat/sub/pi-agent/other?session=1", { headers: { Upgrade: "websocket" } })
+    );
+    const socket = response.webSocket as WebSocket;
+    socket.accept();
+    // The SDK upgrades a refused sub-agent socket only to close it with 4000 + status.
+    const first = await new Promise<string>((resolve) => {
+      socket.addEventListener("close", (event) => resolve(`closed ${event.code}`));
+      socket.addEventListener("message", () => resolve("a frame from a sub-agent"));
+    });
+    expect(first).toBe("closed 4404");
+  });
+
   it("answers a submitted message and acknowledges it once", async () => {
     const client = await connectAgent();
     client.send({ type: "submit", id: "c1", input: "hello there", operationId: "op-1" });
@@ -109,6 +123,15 @@ describe("memory", () => {
     await client.until(() => client.frames.some((frame) => frame.type === "error" && frame.id === "m2"), "m2 error");
     client.send({ type: "memory_delete", id: "m3", key: "city" });
     await client.until(() => lastOf(client.frames, "memory")?.items.length === 0, "the deletion");
+    client.socket.close();
+  });
+
+  it("keep streaming to a socket that hibernated with the object", async () => {
+    const client = await connectAgent();
+    await client.until(() => client.frames.some((frame) => frame.type === "events"), "the snapshot");
+    await evictDurableObject(env.PiAgent.getByName(client.name)); // the socket hibernates
+    client.send({ type: "submit", input: "after the nap" });
+    await settle(client, "echo: after the nap");
     client.socket.close();
   });
 
@@ -189,6 +212,46 @@ describe("reading the web", () => {
     await client.until(() => transcript(client.frames, "toolResult").length === 2, "the second read");
     expect(transcript(client.frames, "toolResult")[1]).toMatch(/^<untrusted source="https:\/\/docs\.example\.org\/guide">/);
     client.socket.close();
+  });
+});
+
+describe("the model", () => {
+  function snapshotModel(client: Client): string | undefined {
+    const snapshot = client.frames
+      .flatMap((frame) => (frame.type === "events" ? frame.events : []))
+      .filter((event) => event.type === "snapshot")
+      .at(-1);
+    const model = snapshot?.type === "snapshot" ? snapshot.agent.model : undefined;
+    return model ? `${model.provider}/${model.modelId}` : undefined;
+  }
+
+  it("moves the conversation to a new MODEL_ID on the next start, checking only when it changed", async () => {
+    const first = await connectAgent();
+    first.send({ type: "submit", input: "hello" });
+    await settle(first, "echo: hello");
+    expect(first.frames[0]).toMatchObject({ type: "hello", model: "faux/faux-1" });
+    first.socket.close();
+    const stub = env.PiAgent.getByName(first.name);
+    expect(await kv<number>(first.name, SYNC_RUNS)).toBe(1);
+
+    // Restarting with the same model has nothing to check.
+    await evictDurableObject(stub, { webSockets: "close" });
+    const same = await connectAgent(first.name);
+    await same.until(() => snapshotModel(same) !== undefined, "the snapshot");
+    expect(snapshotModel(same)).toBe("faux/faux-1");
+    expect(await kv<number>(first.name, SYNC_RUNS)).toBe(1);
+    same.socket.close();
+
+    // A deploy with another MODEL_ID.
+    await runInDurableObject(stub, (_instance, state) => state.storage.kv.put(TEST_MODEL, "faux-2"));
+    await evictDurableObject(stub, { webSockets: "close" });
+    const moved = await connectAgent(first.name);
+    await moved.until(() => snapshotModel(moved) !== undefined, "the snapshot");
+    expect(moved.frames[0]).toMatchObject({ type: "hello", model: "faux/faux-2" });
+    expect(snapshotModel(moved)).toBe("faux/faux-2");
+    expect(transcript(moved.frames)).toContain("echo: hello");
+    expect(await kv<number>(first.name, SYNC_RUNS)).toBe(2);
+    moved.socket.close();
   });
 });
 

@@ -138,6 +138,18 @@ describe("AppStore memory", () => {
     }));
 });
 
+describe("AppStore meta", () => {
+  it("records the schema version and keeps small settings across instances", () =>
+    withSql((sql) => {
+      const store = new AppStore(sql);
+      expect(store.meta.get("schema")).toBe("1");
+      expect(store.meta.get("model")).toBeUndefined();
+      store.meta.set("model", "cloudflare/anthropic/claude-opus-5-5");
+      store.meta.set("model", "cloudflare/anthropic/claude-sonnet-5");
+      expect(new AppStore(sql).meta.get("model")).toBe("cloudflare/anthropic/claude-sonnet-5");
+    }));
+});
+
 describe("AppStore conversations", () => {
   it("tracks taint per conversation until it is reset", () =>
     withSql((sql) => {
