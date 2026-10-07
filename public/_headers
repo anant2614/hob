@@ -1,0 +1,8 @@
+# Workers Assets headers for the web app. The CSP is a second line of defence
+# behind the Markdown renderer: model output can carry URLs planted by a web
+# page, so nothing but this origin may be loaded or contacted.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' wss:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

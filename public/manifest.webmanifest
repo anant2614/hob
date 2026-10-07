@@ -1,0 +1,10 @@
+{
+  "name": "Hob",
+  "short_name": "Hob",
+  "description": "Your private assistant.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12161D",
+  "theme_color": "#12161D",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

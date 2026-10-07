@@ -10,9 +10,10 @@
   "packageManager": "pnpm@10.28.0",
   "scripts": {
     "dev": "vite dev",
+    "demo": "vite dev --config test/e2e/vite.config.ts",
     "build": "vite build",
     "deploy": "vite build && wrangler deploy",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "types": "wrangler types src/worker-configuration.d.ts --include-runtime false --strict-vars false",
     "test": "vitest run --config test/vitest.config.ts",
     "check": "pnpm typecheck && pnpm test && pnpm build"
@@ -20,6 +21,8 @@
   "dependencies": {
     "@earendil-works/pi-ai": "1.0.4",
     "@earendil-works/pi-durable": "1.0.4",
+    "@fontsource-variable/atkinson-hyperlegible-mono": "5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
     "@phosphor-icons/react": "2.1.10",
     "agents": "0.26.0",
     "jose": "6.2.12",
