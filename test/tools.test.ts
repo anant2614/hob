@@ -250,6 +250,45 @@ describe("read_page", () => {
 });
 
 describe("remember and forget", () => {
+  it("remember will not replace a confirmed memory while tainted, but may update a flagged one", () =>
+    withSql(async (sql) => {
+      const store = new AppStore(sql);
+      store.memory.set("address", "12 Elm Street", { source: "owner", tainted: false });
+      store.memory.set("tip", "From a page", { source: "agent", tainted: true });
+      const remember = rememberTool(store);
+
+      const refused = await remember.execute({ key: "Address", text: "1 Attacker Road" }, ctx({ tainted: true }));
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]?.text).toContain('"address"');
+      expect(store.memory.get("address")?.text).toBe("12 Elm Street");
+
+      const updated = await remember.execute({ key: "tip", text: "Also from a page" }, ctx({ tainted: true }));
+      expect(updated.isError).toBeUndefined();
+      expect(store.memory.get("tip")).toMatchObject({ text: "Also from a page", tainted: true });
+
+      const clean = await remember.execute({ key: "address", text: "14 Elm Street" }, ctx());
+      expect(clean.isError).toBeUndefined();
+      expect(store.memory.get("address")?.text).toBe("14 Elm Street");
+    }));
+
+  it("forget will not delete a confirmed memory while tainted, but may delete a flagged one", () =>
+    withSql(async (sql) => {
+      const store = new AppStore(sql);
+      store.memory.set("address", "12 Elm Street", { source: "owner", tainted: false });
+      store.memory.set("tip", "From a page", { source: "agent", tainted: true });
+      const forget = forgetTool(store);
+
+      const refused = await forget.execute({ key: "address" }, ctx({ tainted: true }));
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]?.text).toContain("Memory panel");
+      expect(store.memory.get("address")).toBeDefined();
+
+      expect((await forget.execute({ key: "tip" }, ctx({ tainted: true }))).isError).toBeUndefined();
+      expect(store.memory.get("tip")).toBeUndefined();
+      expect((await forget.execute({ key: "address" }, ctx())).isError).toBeUndefined();
+      expect(store.memory.get("address")).toBeUndefined();
+    }));
+
   it("remember saves a memory as written by the agent", () =>
     withSql(async (sql) => {
       const store = new AppStore(sql);

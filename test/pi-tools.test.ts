@@ -4,7 +4,8 @@ import { Policy } from "../src/tools/policy";
 import type { Effect, ToolSpec } from "../src/tools/spec";
 
 const policy = new Policy({
-  conversations: { isTainted: () => false, taint: () => undefined, hasOwnerHost: () => false }
+  conversations: { isTainted: () => false, taint: () => undefined, hasOwnerHost: () => false },
+  memory: { hasUnconfirmed: () => false }
 });
 
 function spec(effect: Effect, sequential?: boolean): ToolSpec {

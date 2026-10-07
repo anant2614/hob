@@ -89,6 +89,18 @@ describe("AppStore memory", () => {
       expect(store.memory.list()).toEqual([]);
     }));
 
+  it("looks up one memory and knows whether any is still unconfirmed", () =>
+    withSql((sql) => {
+      const store = new AppStore(sql);
+      expect(store.memory.get("Coffee")).toBeUndefined();
+      expect(store.memory.hasUnconfirmed()).toBe(false);
+      store.memory.set("coffee", "Flat white", { source: "agent", tainted: true });
+      expect(store.memory.get("Coffee")).toMatchObject({ key: "coffee", text: "Flat white", tainted: true });
+      expect(store.memory.hasUnconfirmed()).toBe(true);
+      store.memory.set("coffee", "Flat white", { source: "owner", tainted: false });
+      expect(store.memory.hasUnconfirmed()).toBe(false);
+    }));
+
   it("keeps memories across store instances over the same database", () =>
     withSql((sql) => {
       new AppStore(sql).memory.set("name", "Anant", { source: "owner", tainted: false });
@@ -134,12 +146,16 @@ describe("AppStore conversations", () => {
       expect(store.conversations.isTainted("1")).toBe(false);
     }));
 
-  it("matches hosts the owner mentioned, including their subdomains, until reset", () =>
+  it("matches exactly the hosts the owner mentioned, www. aside, until reset", () =>
     withSql((sql) => {
       const store = new AppStore(sql);
-      store.conversations.addOwnerHosts("1", ["example.com"]);
+      // Not their subdomains: "my app is on workers.dev" must not open every *.workers.dev.
+      store.conversations.addOwnerHosts("1", ["example.com", "www.docs.example.org", "workers.dev"]);
       expect(store.conversations.hasOwnerHost("1", "example.com")).toBe(true);
-      expect(store.conversations.hasOwnerHost("1", "blog.example.com")).toBe(true);
+      expect(store.conversations.hasOwnerHost("1", "www.example.com")).toBe(true);
+      expect(store.conversations.hasOwnerHost("1", "docs.example.org")).toBe(true);
+      expect(store.conversations.hasOwnerHost("1", "blog.example.com")).toBe(false);
+      expect(store.conversations.hasOwnerHost("1", "attacker.workers.dev")).toBe(false);
       expect(store.conversations.hasOwnerHost("1", "notexample.com")).toBe(false);
       expect(store.conversations.hasOwnerHost("2", "example.com")).toBe(false);
       store.conversations.reset("1");

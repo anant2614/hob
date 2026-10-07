@@ -97,6 +97,18 @@ export class AppStore {
         .toArray()
         .map(toItem),
 
+    get: (rawKey: string): MemoryItem | undefined => {
+      const key = normalizeKey(rawKey);
+      if (key === null) return undefined;
+      const row = this.#sql
+        .exec<MemoryRow>("SELECT key, text, source, tainted, updated_at FROM app_memory WHERE key = ?", key)
+        .toArray()[0];
+      return row === undefined ? undefined : toItem(row);
+    },
+
+    /** Whether a memory saved after reading untrusted content still waits for the owner to keep or delete it. */
+    hasUnconfirmed: (): boolean => this.#sql.exec("SELECT 1 FROM app_memory WHERE tainted = 1 LIMIT 1").toArray().length > 0,
+
     set: (rawKey: string, rawText: string, options: { source: MemorySource; tainted: boolean }): MemoryResult => {
       const key = normalizeKey(rawKey);
       if (key === null) {
@@ -182,14 +194,14 @@ export class AppStore {
       }
     },
 
-    /** Whether the owner named this host, or a parent domain of it, in this conversation. */
-    hasOwnerHost: (conversation: string, host: string): boolean => {
-      const wanted = normalizeHost(host);
-      return this.#sql
-        .exec<{ host: string }>("SELECT host FROM app_owner_host WHERE conversation = ?", conversation)
-        .toArray()
-        .some(({ host: named }) => wanted === named || wanted.endsWith(`.${named}`));
-    },
+    /**
+     * Whether the owner named exactly this host (`www.` aside) in this conversation.
+     * Not its subdomains: naming workers.dev must not open every *.workers.dev.
+     */
+    hasOwnerHost: (conversation: string, host: string): boolean =>
+      this.#sql
+        .exec("SELECT 1 FROM app_owner_host WHERE conversation = ? AND host = ?", conversation, normalizeHost(host))
+        .toArray().length > 0,
 
     /** A new context: the untrusted content and the owner's mentions are gone from what the model sees. */
     reset: (conversation: string): void => {

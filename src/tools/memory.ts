@@ -19,6 +19,14 @@ export function rememberTool(store: MemoryStore): ToolSpec<{ key: string; text: 
     },
     effect: "idempotent-write",
     async execute(args, ctx) {
+      // Third-party text may be steering this call: it may add or update flagged memories, not change confirmed ones.
+      const existing = ctx.tainted ? store.memory.get(args.key) : undefined;
+      if (existing !== undefined && !existing.tainted) {
+        return textOutput(
+          `Not saved: "${existing.key}" holds a confirmed memory, and Hob can't change one while untrusted web content is in play. Save it under a new key, or ask the owner to update "${existing.key}" in the Memory panel.`,
+          true
+        );
+      }
       const result = store.memory.set(args.key, args.text, { source: "agent", tainted: ctx.tainted });
       return result.ok ? textOutput(`Saved memory "${result.item.key}".`) : textOutput(result.error, true);
     }
@@ -36,8 +44,14 @@ export function forgetTool(store: MemoryStore): ToolSpec<{ key: string }> {
       additionalProperties: false
     },
     effect: "idempotent-write",
-    async execute(args) {
+    async execute(args, ctx) {
       const key = normalizeKey(args.key) ?? args.key;
+      if (ctx.tainted && store.memory.get(args.key)?.tainted === false) {
+        return textOutput(
+          `Not forgotten: "${key}" is a confirmed memory, and Hob can't delete one while untrusted web content is in play. Ask the owner to delete it in the Memory panel.`,
+          true
+        );
+      }
       return store.memory.delete(args.key) ? textOutput(`Forgot "${key}".`) : textOutput(`Nothing was saved under "${key}".`);
     }
   };
