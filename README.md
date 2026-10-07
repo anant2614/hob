@@ -86,13 +86,22 @@ pnpm test    # just the tests
 
 The tests run inside workerd with `@cloudflare/vitest-pool-workers`, against the real agent and the real Pi harness on pi-ai's faux model. They cover:
 
-- the tools, including aborts, timeouts, oversized and binary pages, and blocked hosts
-- the store, the policy and the edge Worker: Access JWTs, header stripping, same-origin and path checks
-- the WebSocket protocol, and memory surviving an eviction
+- the tools, including aborts, timeouts, oversized and binary pages, blocked hosts, redirects (every hop is checked), and hostile HTML that has to convert in linear time
+- the store, the policy and the edge Worker: Access JWTs, header stripping, same-origin and path checks, and the taint rules
+- the WebSocket protocol, memory surviving an eviction, a socket that hibernated with the object, and a new `MODEL_ID` taking over the conversation
 - the run itself: tainting and the egress refusal, Stop, and a crash in the middle of a tool call that the harness recovers from
-- the web app's reducers, including that a run followed live folds to the same view a late snapshot gives
+- the web app's reducers and outbox, including that a run followed live folds to the same view a late snapshot gives
 
-`test/architecture.test.ts` fails if anything outside `src/harness/pi.ts` imports Pi.
+`test/architecture.test.ts` fails if anything outside `src/harness/pi.ts` imports Pi, in any import form.
+
+### In a browser
+
+`test/e2e/browser-check.cjs` drives `pnpm demo` in Chromium from a clean state. It covers layout on a desktop and on a phone in dark mode, the memory drawer, Stop, and New topic. It also loses a message on a dead socket and checks that it's resent, checks the reload hint, and kills the demo server mid-tool, as a deploy would, to watch the answer resume. Playwright isn't a project dependency:
+
+```sh
+npm install -g playwright && npx playwright install chromium   # once
+NODE_PATH="$(npm root -g)" node test/e2e/browser-check.cjs     # screenshots go to test-results/browser
+```
 
 ## How it fits together
 
@@ -120,7 +129,7 @@ flowchart LR
 | --- | --- |
 | `src/worker.ts`, `src/auth/` | The stateless edge. It authenticates, strips headers the SDK would trust, and routes to the object whose name the server derives. `agentName()` is the only code that builds object names. |
 | `src/agent/agent.ts` | `PiAgent extends Agent`. Wiring only: the WebSocket protocol, re-watching sockets after a restart, and pushing memory and taint changes. |
-| `src/agent/store.ts` | Hob's own state in `app_memory`, `app_conversation` and `app_owner_host`, beside Pi's `pi_*` tables. |
+| `src/agent/store.ts` | Hob's own state in `app_memory`, `app_conversation`, `app_owner_host` and `app_meta` (the schema version and the last model applied), beside Pi's `pi_*` tables. |
 | `src/agent/runtime.ts` | The harness port (`submit`, `wait`, `abort`, `reset`, events). |
 | `src/harness/pi.ts` | **The only module that imports Pi.** It opens `PiHarness`, compiles `ToolSpec`s into Pi tools, and wires the model through `createAI` and AI Gateway. |
 | `src/tools/` | Harness-neutral tools and the `Policy` every call goes through. |
@@ -136,23 +145,34 @@ Every deploy and every `wrangler secret put` restarts the Durable Object mid-ans
 ## Security model
 
 - **One owner.** A hostname-based Access application sits in front of everything. The Worker checks the `Cf-Access-Jwt-Assertion` itself: RS256, issuer, audience, and the owner's email. It caches the key set at module scope. The Durable Object is named from an internal id, never from anything the client sends.
-- **Nothing the SDK trusts gets through from a client.** The edge removes the `x-agents-*`, `x-cf-agents-*` and `x-partykit-*` header families, plus credentials. It forwards only the exact path `/chat`, because the SDK routes `/chat/sub/<class>/<name>` to child objects. It refuses WebSocket handshakes from other origins. Connections are read-only for Agent state, Hob exposes no `@callable` methods, and SDK identity and state frames are off.
+- **Nothing the SDK trusts gets through from a client.** The edge removes the `x-agents-*`, `x-cf-agents-*` and `x-partykit-*` header families, plus credentials. It forwards only the exact path `/chat`, because the SDK routes `/chat/sub/<class>/<name>` to child objects, and the object refuses that routing too. It refuses WebSocket handshakes from other origins. Connections are read-only for Agent state, Hob exposes no `@callable` methods, and SDK identity and state frames are off.
 - **No outside effects in v0.** The policy refuses any tool marked as a side effect, and v0 has none.
-- **Web pages are untrusted.** `read_page` output is wrapped in `<untrusted source="…">`, and the wrapper can't be closed from inside. Reading a page marks the conversation, and the status line shows "Includes web pages". From then on, Hob only opens sites you named in your own messages, which blocks a page from steering Hob to send your memory somewhere else. A memory saved in such a conversation is flagged for you to keep or delete. **New topic** clears the flag.
-- **`read_page` limits.** It reads http(s) only, never IP addresses, localhost or internal names, and never URLs with credentials. It times out after 20 s, honours Stop, and reads at most 2 MB, of which at most 50,000 characters and 2,000 lines reach the model.
-- **The browser loads nothing a model chose.** Images in answers are never loaded and links open without a referrer. A Content-Security-Policy in `public/_headers` allows only this origin.
+- **Web pages are untrusted.** `read_page` output is wrapped in `<untrusted source="…">`, and the wrapper can't be closed from inside. Reading a page marks the conversation, and the status line shows "Includes web pages".
+  - From then on, Hob only opens hosts you named in your own messages: exactly those hosts, not their subdomains. Every redirect is checked against the same rule. This stops a page from steering Hob into sending your memory somewhere else.
+  - A memory saved in such a conversation is flagged for you to keep or delete. Until you do, it counts as web content too, even after New topic.
+  - While web content is in play, Hob can add flagged memories, but it can't change or delete confirmed ones.
+  - **New topic** clears the conversation's mark.
+- **`read_page` limits.**
+  - It reads http(s) only. It never reads IP addresses, localhost, internal names, or URLs with credentials.
+  - It follows at most five redirects and checks each one.
+  - It times out after 20 s and honours Stop.
+  - It reads at most 2 MB. At most 45 KB and 1,950 lines of that reach the model, which keeps it inside Pi's 50 KB tool-result bound.
+  - Its HTML converter runs in linear time, so a hostile page can't stall the agent.
+- **The browser loads nothing a model chose.** Images in answers are never loaded and links open without a referrer. A Content-Security-Policy in `public/_headers` allows scripts and connections only to this origin.
 
 Known gaps until v1's approvals:
 
 - A malicious page can still try to send data to its own site through `read_page`, since you named that site.
 - AI Gateway logs full prompts by default.
+- Access is checked when a socket opens. If you revoke the session, an open socket keeps working until it next drops. An expired session fails every reconnect, and the status line then suggests reloading to sign in.
+- Under `pnpm dev`, `read_page` fetches from your machine. It refuses IP addresses and local names, but not a public name that resolves to a private address.
 
 ## v0 exit criteria (blueprint, section 3)
 
 | Criterion | Where it stands |
 | --- | --- |
 | 1. Used every day for a week | Yours to do. |
-| 2. A deploy mid-turn recovers on its own, and the UI shows "resuming…" | Recovery is tested: `test/agent.test.ts` crashes the object mid-tool and the answer finishes. The UI's resuming state is tested in `test/view.test.ts`. To check for real, run `pnpm run deploy` while Hob is answering. |
+| 2. A deploy mid-turn recovers on its own, and the UI shows "resuming…" | Recovery is tested: `test/agent.test.ts` crashes the object mid-tool and the answer finishes. `test/e2e/browser-check.cjs` kills the demo server mid-tool and watches the UI go from "Connection lost" to "Resuming the answer that was cut off…". To check for real, run `pnpm run deploy` while Hob is answering. |
 | 3. The transcript and memories survive eviction | Tested (`test/agent.test.ts`). |
 | 4. Every tool honours `abortSignal` | Tested for `read_page` and for a blocking tool; Stop is in the UI. |
 | 5. A 200+ turn conversation goes through compaction without running out of memory | Pi compacts by default, and the UI shows "Summarising older messages…". Needs real use: Cloudflare hasn't tested compaction on Durable Objects. See [Known limitations](#known-limitations). |
@@ -170,6 +190,9 @@ The blueprint marked many claims as unverified. Building v0 against the pinned r
 - **Compaction is on by default** in pi-durable 1.0.4 (`DEFAULT_COMPACTION_POLICY.enabled`).
 - **The package manager is pnpm.** npm 10 crashes resolving the `agents` peer set (`Cannot read properties of null (reading 'edgesOut')`), so the blueprint's "package-manager overrides" are `pnpm.overrides`.
 - **`web_search` waits for the next `agents` release.** Its tool (`agents/websearch`, Cloudflare's Web Search API) exists only on the agents main branch.
+- **`.dev.vars` and `secrets.required` don't mix.** Once a `secrets` block exists, wrangler 4.148 loads only the `.dev.vars` keys it declares, so the blueprint's `DEV_AUTH` variable would never reach `pnpm dev`. The bypass is gated on Vite's `import.meta.env.DEV` instead, which is just as absent from production. For the same reason, the first deploy of a new Worker has to carry the secret with `--secrets-file`.
+- **Pi keeps only the first 50 KB or 2,000 lines of a tool result**, so `read_page` budgets its text in bytes and lines, with room left for its label.
+- **HTMLRewriter didn't fit hostile pages.** It calls into JavaScript once per text chunk, so 2 MB of `<` took 13 s, and deep nesting hits its memory limit. `read_page` uses a single-pass scanner instead.
 
 ## Known limitations
 
