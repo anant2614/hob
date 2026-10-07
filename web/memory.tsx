@@ -5,6 +5,37 @@ import type { MemoryItem } from "../src/shared/protocol";
 const MAX_MEMORIES = 100;
 const MAX_TEXT = 1000;
 
+type Save = (key: string, text: string) => Promise<unknown>;
+type Delete = (key: string) => Promise<unknown>;
+
+/** Run one memory action at a time, keeping its error for the form that started it. */
+function useAction() {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (action: () => Promise<unknown>): Promise<boolean> => {
+    setPending(true);
+    setError(null);
+    try {
+      await action();
+      return true;
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+      return false;
+    } finally {
+      setPending(false);
+    }
+  };
+  return { run, pending, error };
+}
+
+function FormError({ error }: { readonly error: string | null }) {
+  return error === null ? null : (
+    <p className="form-error" role="alert">
+      {error}
+    </p>
+  );
+}
+
 function savedWhen(item: MemoryItem): string {
   const date = new Date(item.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" });
   return item.source === "owner" ? `Added by you on ${date}` : `Saved by Hob on ${date}`;
@@ -16,12 +47,13 @@ function MemoryRow({
   onDelete
 }: {
   readonly item: MemoryItem;
-  readonly onSave: (key: string, text: string) => void;
-  readonly onDelete: (key: string) => void;
+  readonly onSave: Save;
+  readonly onDelete: Delete;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(item.text);
+  const { run, pending, error } = useAction();
 
   useEffect(() => setDraft(item.text), [item.text]);
 
@@ -34,10 +66,9 @@ function MemoryRow({
       {editing ? (
         <form
           className="memory-edit"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
-            onSave(item.key, draft);
-            setEditing(false);
+            if (await run(() => onSave(item.key, draft))) setEditing(false);
           }}
         >
           <textarea
@@ -49,8 +80,8 @@ function MemoryRow({
             autoFocus
           />
           <div className="row-actions">
-            <button type="submit" className="btn btn-primary" disabled={draft.trim() === ""}>
-              Save
+            <button type="submit" className="btn btn-primary" disabled={pending || draft.trim() === ""}>
+              {pending ? "Saving…" : "Save"}
             </button>
             <button type="button" className="btn" onClick={() => setEditing(false)}>
               Cancel
@@ -63,8 +94,8 @@ function MemoryRow({
       {item.tainted && !editing ? (
         <div className="memory-flag">
           <WarningIcon size={15} weight="bold" aria-hidden="true" />
-          <p>Saved after reading a web page. Keep it only if it's true.</p>
-          <button type="button" className="btn" onClick={() => onSave(item.key, item.text)}>
+          <p>Saved after reading a web page. Keep it only if it's true; until you keep or delete it, Hob only opens sites you name.</p>
+          <button type="button" className="btn" disabled={pending} onClick={() => run(() => onSave(item.key, item.text))}>
             Keep
           </button>
         </div>
@@ -74,7 +105,14 @@ function MemoryRow({
           {confirming ? (
             <>
               <span className="confirm-text">Delete “{item.key}”?</span>
-              <button type="button" className="btn btn-danger" onClick={() => onDelete(item.key)}>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={pending}
+                onClick={async () => {
+                  if (await run(() => onDelete(item.key))) setConfirming(false);
+                }}
+              >
                 Delete
               </button>
               <button type="button" className="btn" onClick={() => setConfirming(false)}>
@@ -93,19 +131,23 @@ function MemoryRow({
           )}
         </div>
       ) : null}
+      <FormError error={error} />
     </li>
   );
 }
 
-function AddMemory({ onSave, full }: { readonly onSave: (key: string, text: string) => void; readonly full: boolean }) {
+function AddMemory({ onSave, full }: { readonly onSave: Save; readonly full: boolean }) {
   const [key, setKey] = useState("");
   const [text, setText] = useState("");
-  const submit = (event: FormEvent) => {
+  const { run, pending, error } = useAction();
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (key.trim() === "" || text.trim() === "") return;
-    onSave(key, text);
-    setKey("");
-    setText("");
+    if (pending || key.trim() === "" || text.trim() === "") return;
+    // Clear the form only once Hob has the memory: offline, or refused, the text stays.
+    if (await run(() => onSave(key, text))) {
+      setKey("");
+      setText("");
+    }
   };
   return (
     <form className="memory-add" onSubmit={submit}>
@@ -124,10 +166,11 @@ function AddMemory({ onSave, full }: { readonly onSave: (key: string, text: stri
           onChange={(event) => setText(event.target.value)}
         />
       </label>
-      <button type="submit" className="btn btn-primary" disabled={full || key.trim() === "" || text.trim() === ""}>
-        Save memory
+      <button type="submit" className="btn btn-primary" disabled={pending || full || key.trim() === "" || text.trim() === ""}>
+        {pending ? "Saving…" : "Save memory"}
       </button>
       {full ? <p className="hint">Memory is full. Delete something first.</p> : null}
+      <FormError error={error} />
     </form>
   );
 }
@@ -142,8 +185,8 @@ export function MemoryDrawer({
   readonly open: boolean;
   readonly items: readonly MemoryItem[];
   readonly onClose: () => void;
-  readonly onSave: (key: string, text: string) => void;
-  readonly onDelete: (key: string) => void;
+  readonly onSave: Save;
+  readonly onDelete: Delete;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 

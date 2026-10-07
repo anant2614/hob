@@ -11,7 +11,11 @@ describe("normalizeKey", () => {
     ["", null],
     ["!!!", null],
     ["a".repeat(64), "a".repeat(64)],
-    ["a".repeat(65), null]
+    ["a".repeat(65), null],
+    ["José", "josé"],
+    ["Jose\u0301", "josé"],
+    ["名前", "名前"],
+    ["Café au lait", "café-au-lait"]
   ])("%j → %j", (raw, want) => {
     expect(normalizeKey(raw)).toBe(want);
   });

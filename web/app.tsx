@@ -4,7 +4,7 @@ import { Composer } from "./composer";
 import { Logbook } from "./logbook";
 import { MemoryDrawer } from "./memory";
 import { PilotLight, type PilotState } from "./pilot";
-import type { AppState } from "./state";
+import { needsReload, statusText, type AppState } from "./state";
 import { formatCost, groupTurns, resultsByCall } from "./turns";
 import { useHob } from "./use-hob";
 
@@ -21,18 +21,6 @@ function pilotState(state: AppState): PilotState {
   return state.view.running ? "working" : "lit";
 }
 
-/** One sentence about what is happening, most important first. */
-function statusText(state: AppState): string {
-  const { view } = state;
-  if (state.status === "connecting") return "Connecting…";
-  if (state.status === "reconnecting") return view.running ? "Connection lost. Reconnecting…" : "Reconnecting…";
-  if (view.resuming) return "Resuming the answer that was cut off…";
-  if (view.retry) return "The model is busy. Trying again shortly…";
-  if (view.compacting) return "Summarising older messages…";
-  if (view.running && view.queued > 0) return `Working. ${view.queued} more waiting.`;
-  if (view.running) return "Working…";
-  return state.model ? `Ready. ${state.model.split("/").at(-1)}` : "Ready.";
-}
 
 function NewTopicMenu({ onNewTopic, disabled }: { readonly onNewTopic: () => void; readonly disabled: boolean }) {
   const [open, setOpen] = useState(false);
@@ -155,6 +143,7 @@ export function App() {
               className="memory-btn"
               onClick={() => setMemoryOpen(true)}
               aria-label={`Memory, ${hob.memory.length} saved${flagged > 0 ? `, ${flagged} to check` : ""}`}
+              title={flagged > 0 ? "Saved from a web page: check it. Until you keep or delete it, Hob only opens sites you name." : undefined}
             >
               <BookmarkSimpleIcon size={17} weight="bold" aria-hidden="true" />
               <span>Memory</span>
@@ -214,8 +203,13 @@ export function App() {
             <span role="status" aria-live="polite">
               {statusText(hob)}
             </span>
+            {needsReload(hob) ? (
+              <button type="button" className="reload" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+            ) : null}
             {hob.tainted ? (
-              <span className="taint" title="Hob only opens sites you name yourself until you start a new topic.">
+              <span className="taint" title="While this conversation includes web pages, Hob only opens sites you name yourself. A new topic clears it.">
                 <InfoIcon size={14} weight="bold" aria-hidden="true" /> Includes web pages
               </span>
             ) : null}

@@ -557,6 +557,23 @@ body {
   color: var(--caution);
 }
 
+.reload {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--flame);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
+.form-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
 .alert {
   display: flex;
   align-items: flex-start;

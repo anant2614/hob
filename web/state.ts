@@ -14,6 +14,8 @@ export type AppState = {
   readonly view: HobView;
   /** The latest error the agent sent back, until dismissed. */
   readonly notice: string | null;
+  /** Sockets closed since the last one opened: failed reconnects, once it is more than one. */
+  readonly failures: number;
 };
 
 export const INITIAL_APP: AppState = {
@@ -23,7 +25,8 @@ export const INITIAL_APP: AppState = {
   memory: [],
   tainted: false,
   view: EMPTY_VIEW,
-  notice: null
+  notice: null,
+  failures: 0
 };
 
 export type AppAction =
@@ -36,19 +39,21 @@ export type AppAction =
 export function reduceApp(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "open":
-      return { ...state, status: "open" };
+      return { ...state, status: "open", failures: 0 };
     case "closed":
       return {
         ...state,
         status: state.status === "connecting" ? "connecting" : "reconnecting",
-        view: reduceView(state.view, { type: "disconnected" })
+        view: reduceView(state.view, { type: "disconnected" }),
+        failures: state.failures + 1
       };
     case "notice":
       return { ...state, notice: action.text };
     case "dismiss":
-      return { ...state, notice: null };
+      return { ...state, notice: null, view: { ...state.view, error: null } };
     case "server": {
       const message = action.message;
+      if (typeof message !== "object" || message === null) return state;
       switch (message.type) {
         case "hello":
           return { ...state, model: message.model, tools: message.tools };
@@ -62,7 +67,32 @@ export function reduceApp(state: AppState, action: AppAction): AppState {
           return { ...state, notice: message.message };
         case "result":
           return state;
+        default:
+          // A frame from a newer server than this page.
+          return state;
       }
     }
   }
+}
+
+/** Failed reconnects before the status suggests a reload: an expired Access session fails every one. */
+const RELOAD_AFTER = 3;
+
+/** Whether reconnecting keeps failing, so a reload (and a fresh sign-in) is the way back. */
+export function needsReload(state: AppState): boolean {
+  return state.status !== "open" && state.failures >= RELOAD_AFTER;
+}
+
+/** One sentence about what is happening, most important first. */
+export function statusText(state: AppState): string {
+  const { view } = state;
+  if (needsReload(state)) return "Can't reach Hob. If you were signed out, reload to sign in again.";
+  if (state.status === "connecting") return "Connecting…";
+  if (state.status === "reconnecting") return view.running ? "Connection lost. Reconnecting…" : "Reconnecting…";
+  if (view.resuming) return "Resuming the answer that was cut off…";
+  if (view.retry) return "The model is busy. Trying again shortly…";
+  if (view.compacting) return "Summarising older messages…";
+  if (view.running && view.queued > 0) return `Working. ${view.queued} more waiting.`;
+  if (view.running) return "Working…";
+  return state.model ? `Ready. ${state.model.split("/").at(-1)}` : "Ready.";
 }

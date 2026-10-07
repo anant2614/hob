@@ -17,11 +17,12 @@ export type MemoryResult = { readonly ok: true; readonly item: MemoryItem } | { 
 
 export type StoreChange = { readonly kind: "memory" } | { readonly kind: "taint"; readonly conversation: string };
 
-/** Lowercase, words joined by `-`, only `[a-z0-9._-]`, 1–64 characters; null when nothing usable is left. */
+/** Lowercase, words joined by `-`, only letters, digits and `._-` (any script), 1–64 characters; null when nothing usable is left. */
 export function normalizeKey(raw: string): string | null {
   const key = raw
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[^a-z0-9._\s-]/g, "")
+    .replace(/[^\p{L}\p{M}\p{N}._\s-]/gu, "")
     .trim()
     .replace(/\s+/g, "-")
     .replace(/^[-.]+|[-.]+$/g, "");
