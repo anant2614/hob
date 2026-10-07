@@ -244,7 +244,9 @@ export function htmlToText(html: string, baseUrl?: string): { title?: string; te
       endTag(name);
       continue;
     }
-    if (SKIPPED.has(name) && !unclosed.has(name)) {
+    // `<svg …/>` is empty; a browser ignores the slash only on raw-text elements such as <script/>.
+    const selfClosed = attributes.trimEnd().endsWith("/") && !RAW_TEXT.has(name);
+    if (SKIPPED.has(name) && !unclosed.has(name) && !selfClosed) {
       const close = findEndTag(html, name, i);
       if (close === undefined) {
         if (RAW_TEXT.has(name)) {

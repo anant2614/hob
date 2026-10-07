@@ -95,6 +95,14 @@ describe("htmlToText on awkward markup", () => {
     expect(read("<nav>menu <p>body</p>")).toContain("body");
   });
 
+  it("treats a self-closed svg as empty, without hiding what follows", () => {
+    expect(read(`<svg viewBox="0 0 1 1"/><p>Important</p><svg><title>icon</title></svg><p>Also</p>`)).toBe(
+      "Important\n\nAlso"
+    );
+    // A script's slash means nothing to a browser: its content still runs to </script>.
+    expect(read(`<script src="/x.js"/>gone()</script><p>Kept</p>`)).toBe("Kept");
+  });
+
   it("drops a tag cut off at the end of the document", () => {
     expect(read(`<p>ok</p><a href="/x`)).toBe("ok");
   });

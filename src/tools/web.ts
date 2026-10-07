@@ -50,6 +50,11 @@ function parseTarget(raw: string): URL | string {
   return url;
 }
 
+// Error results are not labelled untrusted and do not taint the conversation,
+// so they carry nothing the server chose: no reason phrase, no odd media type,
+// no raw Location.
+const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$/;
+
 function isHtml(type: string): boolean {
   return type === "" || type === "text/html" || type === "application/xhtml+xml";
 }
@@ -151,11 +156,13 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
       const timeout = AbortSignal.timeout(timeoutMs);
       const signal = AbortSignal.any([ctx.signal, timeout]);
 
+      // A URL a redirect chose shows in errors only by its host.
+      const where = () => (target === start ? start.href : `${start.href} (redirected to ${target.hostname})`);
       const failure = (error: unknown): ToolOutput => {
         if (ctx.signal.aborted) throw ctx.signal.reason ?? error;
-        if (timeout.aborted) return textOutput(`Timed out after ${Math.round(timeoutMs / 1000)} s reading ${target.href}.`, true);
+        if (timeout.aborted) return textOutput(`Timed out after ${Math.round(timeoutMs / 1000)} s reading ${where()}.`, true);
         const message = error instanceof Error ? error.message : String(error);
-        return textOutput(`Couldn't read ${target.href}: ${message}`, true);
+        return textOutput(`Couldn't read ${where()}: ${message}`, true);
       };
 
       // Follow redirects here, not in fetch, so every hop passes the same host
@@ -177,30 +184,32 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
         if (!REDIRECTS.has(response.status)) break;
         await response.body?.cancel().catch(() => undefined);
         const location = response.headers.get("location");
-        if (location === null) return textOutput(`${target.href} answered HTTP ${response.status} without saying where to go.`, true);
-        if (redirects === MAX_REDIRECTS) return textOutput(`Not read: too many redirects, the last from ${target.href}.`, true);
+        if (location === null) return textOutput(`${where()} answered HTTP ${response.status} without saying where to go.`, true);
+        if (redirects === MAX_REDIRECTS) return textOutput(`Not read: too many redirects from ${start.href} (more than ${MAX_REDIRECTS}).`, true);
         let resolved: string;
         try {
           resolved = new URL(location, target).href;
         } catch {
-          return textOutput(`${target.href} redirected to ${JSON.stringify(clip(location, MAX_URL_SHOWN))}, which is not a URL.`, true);
+          return textOutput(`${where()} redirected to an address that is not a URL.`, true);
         }
         const next = parseTarget(resolved);
-        if (typeof next === "string") return textOutput(`${target.href} redirected to ${clip(resolved, MAX_URL_SHOWN)}. ${next}`, true);
+        // Each refusal names the host, which is all the owner needs to decide.
+        if (typeof next === "string") return textOutput(`${where()} redirected. ${next}`, true);
         const refusal = ctx.checkEgress(next.href);
-        if (refusal !== undefined) return textOutput(`${target.href} redirected to ${clip(next.href, MAX_URL_SHOWN)}. ${refusal}`, true);
+        if (refusal !== undefined) return textOutput(`${where()} redirected. ${refusal}`, true);
         target = next;
       }
 
       const finalUrl = target.href;
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined);
-        return textOutput(`${finalUrl} answered HTTP ${response.status} ${response.statusText}.`.trim(), true);
+        return textOutput(`${where()} answered HTTP ${response.status}.`, true);
       }
       const type = (response.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
       if (!isHtml(type) && !isText(type)) {
         await response.body?.cancel().catch(() => undefined);
-        return textOutput(`${finalUrl} is ${type}; Hob can only read HTML and text pages.`, true);
+        const named = MEDIA_TYPE.test(type) ? type : "a type it doesn't name properly";
+        return textOutput(`${where()} is ${named}; Hob can only read HTML and text pages.`, true);
       }
 
       let body: { text: string; truncated: boolean };
