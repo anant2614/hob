@@ -1,4 +1,4 @@
-# Copy to .dev.vars for `pnpm dev`. Never set DEV_AUTH in production:
-# it lets requests to http://localhost through without Cloudflare Access.
-DEV_AUTH=1
+# Copy to .dev.vars for `pnpm dev`. ACCESS_AUD is a required secret, so the
+# dev server warns when it is missing. Access isn't in front of localhost: a
+# development build lets http://localhost through without a token instead.
 ACCESS_AUD=dev-only

@@ -61,28 +61,28 @@ describe("authenticate", () => {
     TEAM_DOMAIN: `${TEAM}/`,
     ACCESS_AUD: AUD,
     OWNER_EMAIL: OWNER,
-    OWNER_USER_ID: "usr_owner",
-    DEV_AUTH: undefined as string | undefined
+    OWNER_USER_ID: "usr_owner"
   };
 
   it("maps a valid Access token to the owner's internal id", async () => {
     const request = new Request("https://agent.example.com/chat", {
       headers: { "cf-access-jwt-assertion": await token() }
     });
-    expect(await authenticate(request, env, jwks)).toEqual({ userId: "usr_owner" });
+    expect(await authenticate(request, env, { jwks })).toEqual({ userId: "usr_owner" });
   });
 
   it("rejects a request without a token", async () => {
-    expect(await authenticate(new Request("https://agent.example.com/chat"), env, jwks)).toBeNull();
+    expect(await authenticate(new Request("https://agent.example.com/chat"), env, { jwks })).toBeNull();
   });
 
-  it("lets localhost through only when DEV_AUTH is set", async () => {
+  it("lets a loopback hostname through only in a development build", async () => {
     const local = new Request("http://localhost:5173/chat");
-    expect(await authenticate(local, env, jwks)).toBeNull();
-    expect(await authenticate(local, { ...env, DEV_AUTH: "1" }, jwks)).toEqual({ userId: "usr_owner" });
-    expect(
-      await authenticate(new Request("https://agent.example.com/chat"), { ...env, DEV_AUTH: "1" }, jwks)
-    ).toBeNull();
+    expect(await authenticate(local, env, { jwks })).toBeNull();
+    expect(await authenticate(local, env, { jwks, dev: true })).toEqual({ userId: "usr_owner" });
+    expect(await authenticate(new Request("http://127.0.0.1:5173/chat"), env, { jwks, dev: true })).toEqual({
+      userId: "usr_owner"
+    });
+    expect(await authenticate(new Request("https://agent.example.com/chat"), env, { jwks, dev: true })).toBeNull();
   });
 });
 

@@ -25,7 +25,6 @@
     "OWNER_TIMEZONE": "UTC",
     "MODEL_ID": "faux/faux-1",
     "AI_GATEWAY_ID": "hob-demo",
-    "ACCESS_AUD": "demo",
-    "DEV_AUTH": "1"
+    "ACCESS_AUD": "demo"
   }
 }

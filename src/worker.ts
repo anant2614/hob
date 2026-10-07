@@ -14,7 +14,7 @@ export { PiAgent } from "./agent/agent";
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
-    const principal = await authenticate(request, env);
+    const principal = await authenticate(request, env, { dev: import.meta.env.DEV });
     if (principal === null) return new Response("Forbidden", { status: 403 });
 
     // Exactly /chat: the SDK would route paths such as /chat/sub/<class>/<name> to child objects.

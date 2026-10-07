@@ -14,7 +14,13 @@ export type AuthEnv = {
   readonly ACCESS_AUD: string;
   readonly OWNER_EMAIL: string;
   readonly OWNER_USER_ID: string;
-  readonly DEV_AUTH?: string | undefined;
+};
+
+export type AuthOptions = {
+  /** Access's signing keys. Defaults to the team's published key set. */
+  readonly jwks?: JWTVerifyGetKey;
+  /** A development build: let loopback hostnames through without Access. */
+  readonly dev?: boolean;
 };
 
 /** Whether `token` is a valid Access JWT for this application and the owner's email. */
@@ -48,18 +54,19 @@ function isLoopback(hostname: string): boolean {
 /**
  * Turn a request into the owner's principal, or null. Production requests must
  * carry the Cf-Access-Jwt-Assertion header that the hostname's Access
- * application adds. Local development may skip Access only on a loopback
- * hostname and only with DEV_AUTH=1, which lives in .dev.vars and never in
- * production.
+ * application adds. Access isn't in front of a local dev server, so a
+ * development build lets loopback hostnames through. The edge passes
+ * `import.meta.env.DEV`, which Vite compiles to false for production, so the
+ * bypass never exists there.
  */
-export async function authenticate(request: Request, env: AuthEnv, jwks?: JWTVerifyGetKey): Promise<Principal | null> {
+export async function authenticate(request: Request, env: AuthEnv, options: AuthOptions = {}): Promise<Principal | null> {
   const owner: Principal = { userId: env.OWNER_USER_ID };
-  if (env.DEV_AUTH === "1" && isLoopback(new URL(request.url).hostname)) return owner;
+  if (options.dev === true && isLoopback(new URL(request.url).hostname)) return owner;
 
   const token = request.headers.get("cf-access-jwt-assertion");
   if (token === null || token === "" || !env.ACCESS_AUD) return null;
   const teamDomain = env.TEAM_DOMAIN.replace(/\/+$/, "");
-  const valid = await verifyAccessJwt(token, jwks ?? remoteJwks(teamDomain), {
+  const valid = await verifyAccessJwt(token, options.jwks ?? remoteJwks(teamDomain), {
     teamDomain,
     audience: env.ACCESS_AUD,
     ownerEmail: env.OWNER_EMAIL

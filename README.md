@@ -47,15 +47,17 @@ You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudfl
 
 4. **Set up AI Gateway.** Create a gateway with the id from `AI_GATEWAY_ID` and turn on Unified Billing with some credits, so Claude works without a provider key in the Worker. **Set a spend limit on the gateway.** It is v0's only guard against a runaway tool loop. Leave logging on: it is where you see the cost of each request. It also stores full prompts, so decide whether that is acceptable for you.
 
-5. **Deploy and add the secret:**
+5. **Deploy, with the secret.** `ACCESS_AUD` is a required secret, and `wrangler secret put` can't set one on a Worker that doesn't exist yet, so the first deploy carries it in a file:
 
    ```sh
    pnpm exec wrangler login
-   pnpm run deploy
-   pnpm exec wrangler secret put ACCESS_AUD   # paste the AUD tag
+   echo "ACCESS_AUD=<the AUD tag>" > .secrets.env   # gitignored
+   pnpm build
+   pnpm exec wrangler deploy --secrets-file .secrets.env
+   rm .secrets.env
    ```
 
-   Until `ACCESS_AUD` is set, every request is refused. Note that a deploy, and every `wrangler secret put`, restarts the Durable Object (see [Deploys](#deploys-and-crashes)).
+   After that, deploy with `pnpm run deploy`, and change the tag with `pnpm exec wrangler secret put ACCESS_AUD`. Without the tag, every request is refused. A deploy, and every `wrangler secret put`, restarts the Durable Object (see [Deploys](#deploys-and-crashes)).
 
 6. Open `https://agent.example.com`, sign in through Access, and say hello. On a phone, "Add to Home Screen" gives you an app icon.
 
@@ -68,12 +70,12 @@ Hob asks for thinking effort "low". On Opus 5.5, pi-ai turns that into adaptive 
 ### Local development against real models
 
 ```sh
-cp .dev.vars.example .dev.vars   # sets DEV_AUTH=1
+cp .dev.vars.example .dev.vars   # a placeholder ACCESS_AUD, the required secret
 pnpm exec wrangler login
 pnpm dev
 ```
 
-The AI binding has no local simulation, so `pnpm dev` calls the real models and **spends real money**. Access isn't in front of localhost: `DEV_AUTH=1` lets requests through, but only when the hostname is `localhost` or `127.0.0.1`. Never set it in production.
+The AI binding has no local simulation, so `pnpm dev` calls the real models and **spends real money**. Access isn't in front of localhost, so a development build lets requests through when the hostname is `localhost`, `127.0.0.1` or `[::1]`. The switch is Vite's `import.meta.env.DEV`, which `vite build` compiles to `false`: production has no bypass to turn on.
 
 ## Tests
 

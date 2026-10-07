@@ -5,7 +5,7 @@ import { CONNECT_HEADERS } from "./worker";
 import { fetchChat, follow } from "./ws";
 
 describe("the edge Worker", () => {
-  it("connects the owner's browser on localhost when DEV_AUTH is set", async () => {
+  it("connects the owner's browser on localhost in a development build", async () => {
     const response = await fetchChat("http://localhost/chat?session=1", { origin: "http://localhost" });
     expect(response.status).toBe(101);
     const socket = response.webSocket as WebSocket;
