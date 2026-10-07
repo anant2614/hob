@@ -92,7 +92,14 @@ export class PiAgent extends Agent<Env> {
 
   override async onStart(): Promise<void> {
     // Watches live in memory: give sockets that outlived the last isolate a new one.
-    for (const connection of this.getConnections()) await this.watches.watch(connection, ROOT_CONVERSATION);
+    // One socket's failure must not fail the object's startup.
+    for (const connection of this.getConnections()) {
+      try {
+        await this.watches.watch(connection, ROOT_CONVERSATION);
+      } catch (error) {
+        send(connection, { type: "error", message: `Couldn't reload the conversation: ${errorMessage(error)}` });
+      }
+    }
     try {
       await this.pi.syncModel();
     } catch (error) {
