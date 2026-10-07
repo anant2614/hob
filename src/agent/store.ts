@@ -1,4 +1,7 @@
+import type { MemoryItem } from "../shared/protocol";
 import { normalizeHost } from "../tools/hosts";
+
+export type { MemoryItem };
 
 // Hob's own state, in `app_*` tables beside Pi's `pi_*` tables in the same
 // Durable Object database. Nothing here depends on the harness, so it survives
@@ -8,16 +11,7 @@ export const MAX_MEMORIES = 100;
 export const MAX_MEMORY_TEXT = 1000;
 const MAX_KEY = 64;
 
-export type MemorySource = "owner" | "agent";
-
-export type MemoryItem = {
-  readonly key: string;
-  readonly text: string;
-  readonly source: MemorySource;
-  /** Written while the conversation held untrusted content, so it may be injected. */
-  readonly tainted: boolean;
-  readonly updatedAt: number;
-};
+export type MemorySource = MemoryItem["source"];
 
 export type MemoryResult = { readonly ok: true; readonly item: MemoryItem } | { readonly ok: false; readonly error: string };
 

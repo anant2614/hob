@@ -6,7 +6,20 @@
   "compatibility_date": "2026-07-28",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [{ "name": "SQL_TEST", "class_name": "SqlTestObject" }]
+    "bindings": [
+      { "name": "SQL_TEST", "class_name": "SqlTestObject" },
+      { "name": "PiAgent", "class_name": "PiAgent" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqlTestObject"] }]
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqlTestObject", "PiAgent"] }],
+  "vars": {
+    "TEAM_DOMAIN": "https://hob-test.cloudflareaccess.com",
+    "OWNER_EMAIL": "owner@example.com",
+    "OWNER_USER_ID": "usr_test",
+    "OWNER_TIMEZONE": "UTC",
+    "MODEL_ID": "faux/faux-1",
+    "AI_GATEWAY_ID": "hob-test",
+    "ACCESS_AUD": "test-aud",
+    "DEV_AUTH": "1"
+  }
 }
