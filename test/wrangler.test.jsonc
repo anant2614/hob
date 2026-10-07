@@ -1,0 +1,8 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "hob-test",
+  "main": "worker.ts",
+  // The test pool's workerd is older than production's runtime.
+  "compatibility_date": "2026-07-28",
+  "compatibility_flags": ["nodejs_compat"]
+}

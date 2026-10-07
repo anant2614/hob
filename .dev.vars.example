@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `pnpm dev`. Never set DEV_AUTH in production:
+# it lets requests to http://localhost through without Cloudflare Access.
+DEV_AUTH=1
+ACCESS_AUD=dev-only

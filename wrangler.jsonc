@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hob",
+  "main": "src/worker.ts",
+  // >= 2026-02-24: deleteAll() also deletes alarms.
+  // >= 2026-10-01: pending I/O (setTimeout, RPC, waitUntil) keeps a Durable Object
+  // alive, and billed, for up to 15 minutes. Hob never uses ctx.waitUntil or Pi
+  // timers for that reason.
+  "compatibility_date": "2026-10-06",
+  "compatibility_flags": ["nodejs_compat"],
+  // Workers AI and AI Gateway. The binding has no local simulation, so `pnpm dev`
+  // spends real money.
+  "ai": { "binding": "AI", "remote": true },
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/chat", "/chat/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "PiAgent", "class_name": "PiAgent" }]
+  },
+  // The legacy migrations flow on purpose: switching to "exports" is one-way.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PiAgent"] }],
+  // Hob is reachable only on the custom domain that the hostname-based Access
+  // application protects. Uncomment and set your hostname before deploying.
+  "workers_dev": false,
+  "preview_urls": false,
+  // "routes": [{ "pattern": "agent.example.com", "custom_domain": true }],
+  "vars": {
+    // Your Zero Trust team domain, exactly as it appears in Access JWTs (`iss`).
+    "TEAM_DOMAIN": "https://your-team.cloudflareaccess.com",
+    // The one email address Access lets through, and the internal id it maps to.
+    // The id names your Durable Object (u:<id>): set it once and never change it.
+    "OWNER_EMAIL": "you@example.com",
+    "OWNER_USER_ID": "usr_change_me",
+    // IANA time zone for the date Hob sees, e.g. "Europe/London".
+    "OWNER_TIMEZONE": "UTC",
+    // A pi-ai Cloudflare AI Gateway id (`<provider>/<model>`, hyphens not dots) or a
+    // Workers AI id such as "@cf/zai-org/glm-5.3-flash".
+    "MODEL_ID": "anthropic/claude-opus-5-5",
+    // The AI Gateway that carries Hob's model calls; put the spend limit on it.
+    "AI_GATEWAY_ID": "hob"
+  },
+  // The audience (AUD) tag of the Access application: `wrangler secret put ACCESS_AUD`.
+  "secrets": { "required": ["ACCESS_AUD"] },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "traces": { "enabled": true }
+  }
+}
