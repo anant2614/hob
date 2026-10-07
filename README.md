@@ -158,6 +158,7 @@ Every deploy and every `wrangler secret put` restarts the Durable Object mid-ans
   - It times out after 20 s and honours Stop.
   - It reads at most 2 MB. At most 45 KB and 1,950 lines of that reach the model, which keeps it inside Pi's 50 KB tool-result bound.
   - Its HTML converter runs in linear time, so a hostile page can't stall the agent.
+  - Its errors carry nothing the server chose: no reason phrase, no odd media type, and a redirected URL only by its host. Errors aren't labelled untrusted, so they mustn't be a way around the rules above.
 - **The browser loads nothing a model chose.** Images in answers are never loaded and links open without a referrer. A Content-Security-Policy in `public/_headers` allows scripts and connections only to this origin.
 
 Known gaps until v1's approvals:
