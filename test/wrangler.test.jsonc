@@ -4,5 +4,9 @@
   "main": "worker.ts",
   // The test pool's workerd is older than production's runtime.
   "compatibility_date": "2026-07-28",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "SQL_TEST", "class_name": "SqlTestObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqlTestObject"] }]
 }
