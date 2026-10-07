@@ -11,6 +11,8 @@ const MAX_TEXT_BYTES = 45 * 1024;
 const MAX_LINES = 1_950;
 const MAX_TITLE = 300;
 const MAX_URL_SHOWN = 500;
+const MAX_REDIRECTS = 5;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const USER_AGENT = "Mozilla/5.0 (compatible; Hob/0.1; personal assistant)";
 
 const encoder = new TextEncoder();
@@ -142,8 +144,9 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
     effect: "read",
     egress: (args) => args.url,
     async execute(args, ctx): Promise<ToolOutput> {
-      const target = parseTarget(args.url);
-      if (typeof target === "string") return textOutput(target, true);
+      const start = parseTarget(args.url);
+      if (typeof start === "string") return textOutput(start, true);
+      let target = start;
       const fetchImpl = options.fetch ?? fetch;
       const timeout = AbortSignal.timeout(timeoutMs);
       const signal = AbortSignal.any([ctx.signal, timeout]);
@@ -155,21 +158,41 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
         return textOutput(`Couldn't read ${target.href}: ${message}`, true);
       };
 
+      // Follow redirects here, not in fetch, so every hop passes the same host
+      // checks as the first URL, and the egress policy while tainted.
       let response: Response;
-      try {
-        response = await fetchImpl(target.href, {
-          signal,
-          redirect: "follow",
-          headers: {
-            accept: "text/html,application/xhtml+xml,text/plain;q=0.9,application/json;q=0.8,*/*;q=0.5",
-            "user-agent": USER_AGENT
-          }
-        });
-      } catch (error) {
-        return failure(error);
+      for (let redirects = 0; ; redirects++) {
+        try {
+          response = await fetchImpl(target.href, {
+            signal,
+            redirect: "manual",
+            headers: {
+              accept: "text/html,application/xhtml+xml,text/plain;q=0.9,application/json;q=0.8,*/*;q=0.5",
+              "user-agent": USER_AGENT
+            }
+          });
+        } catch (error) {
+          return failure(error);
+        }
+        if (!REDIRECTS.has(response.status)) break;
+        await response.body?.cancel().catch(() => undefined);
+        const location = response.headers.get("location");
+        if (location === null) return textOutput(`${target.href} answered HTTP ${response.status} without saying where to go.`, true);
+        if (redirects === MAX_REDIRECTS) return textOutput(`Not read: too many redirects, the last from ${target.href}.`, true);
+        let resolved: string;
+        try {
+          resolved = new URL(location, target).href;
+        } catch {
+          return textOutput(`${target.href} redirected to ${JSON.stringify(clip(location, MAX_URL_SHOWN))}, which is not a URL.`, true);
+        }
+        const next = parseTarget(resolved);
+        if (typeof next === "string") return textOutput(`${target.href} redirected to ${clip(resolved, MAX_URL_SHOWN)}. ${next}`, true);
+        const refusal = ctx.checkEgress(next.href);
+        if (refusal !== undefined) return textOutput(`${target.href} redirected to ${clip(next.href, MAX_URL_SHOWN)}. ${refusal}`, true);
+        target = next;
       }
 
-      const finalUrl = response.url === "" ? target.href : response.url;
+      const finalUrl = target.href;
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined);
         return textOutput(`${finalUrl} answered HTTP ${response.status} ${response.statusText}.`.trim(), true);

@@ -105,4 +105,20 @@ describe("Policy.run", () => {
       await policy.run(tool, { url: "https://example.com/next" }, ctx);
       expect(calls.map((call) => call.args)).toEqual([{ url: "https://example.com/next" }]);
     }));
+
+  it("gives the tool the same check for hosts it reaches later, such as redirect targets", () =>
+    withSql(async (sql) => {
+      const store = new AppStore(sql);
+      const { tool, calls } = spec({});
+      const policy = new Policy(store);
+      await policy.run(tool, {}, ctx);
+      const check = calls[0]?.ctx.checkEgress;
+      expect(check?.("https://evil.example.net/")).toBeUndefined();
+
+      store.conversations.taint("1", "https://example.com");
+      store.conversations.addOwnerHosts("1", ["example.com"]);
+      expect(check?.("https://example.com/next")).toBeUndefined();
+      expect(check?.("https://evil.example.net/?d=secret")).toContain("evil.example.net is not one of them");
+      expect(check?.("not a url")).toMatch(/^Not run/);
+    }));
 });

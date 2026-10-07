@@ -13,6 +13,7 @@ function ctx(overrides: Partial<ToolCtx> = {}): ToolCtx {
     conversation: "1",
     tainted: false,
     output() {},
+    checkEgress: () => undefined,
     ...overrides
   };
 }
@@ -48,20 +49,73 @@ function withUrl(response: Response, url: string): Response {
 }
 
 describe("read_page", () => {
-  it("reads an HTML page as untrusted text with its title and final URL", async () => {
+  it("reads an HTML page as untrusted text with its title and URL, without the fragment", async () => {
     const { fetch, calls } = fakeFetch(() =>
-      withUrl(
-        new Response("<title>Docs</title><p>Hello <b>world</b></p>", {
-          headers: { "content-type": "text/html; charset=utf-8" }
-        }),
-        "https://example.com/final"
-      )
+      new Response("<title>Docs</title><p>Hello <b>world</b></p>", {
+        headers: { "content-type": "text/html; charset=utf-8" }
+      })
     );
     const out = await readPageTool({ fetch }).execute({ url: "https://example.com/start#section" }, ctx());
     expect(calls.map((call) => call.url)).toEqual(["https://example.com/start"]);
     expect(out.isError).toBeUndefined();
-    expect(out.untrusted).toEqual({ source: "https://example.com/final" });
-    expect(out.content[0]?.text).toBe("Title: Docs\nURL: https://example.com/final\n\nHello world");
+    expect(out.untrusted).toEqual({ source: "https://example.com/start" });
+    expect(out.content[0]?.text).toBe("Title: Docs\nURL: https://example.com/start\n\nHello world");
+  });
+
+  it("follows redirects itself, to the final page", async () => {
+    const { fetch, calls } = fakeFetch((url) =>
+      url === "https://example.com/old"
+        ? new Response(null, { status: 301, headers: { location: "/new?x=1#frag" } })
+        : new Response("<title>New</title><p>Moved here</p>", { headers: { "content-type": "text/html" } })
+    );
+    const out = await readPageTool({ fetch }).execute({ url: "https://example.com/old" }, ctx());
+    expect(calls.map((call) => [call.url, call.init?.redirect])).toEqual([
+      ["https://example.com/old", "manual"],
+      ["https://example.com/new?x=1", "manual"]
+    ]);
+    expect(out.untrusted).toEqual({ source: "https://example.com/new?x=1" });
+    expect(out.content[0]?.text).toBe("Title: New\nURL: https://example.com/new?x=1\n\nMoved here");
+  });
+
+  it.each(["http://127.0.0.1:8787/admin", "http://localhost/", "http://router.local/", "file:///etc/passwd", "http://[::1]/"])(
+    "refuses a redirect to %s without following it",
+    async (location) => {
+      const { fetch, calls } = fakeFetch(() => new Response(null, { status: 302, headers: { location } }));
+      const out = await readPageTool({ fetch }).execute({ url: "https://example.com/go" }, ctx());
+      expect(out.isError).toBe(true);
+      expect(out.content[0]?.text).toMatch(/^https:\/\/example\.com\/go redirected to .+\. Not read: /);
+      expect(calls).toHaveLength(1);
+    }
+  );
+
+  it("asks the egress policy before following each redirect", async () => {
+    const { fetch, calls } = fakeFetch(() =>
+      new Response(null, { status: 302, headers: { location: "https://evil.example.net/?d=secret" } })
+    );
+    const refusal = "Not fetched: evil.example.net is not one of them.";
+    const out = await readPageTool({ fetch }).execute(
+      { url: "https://example.com/go" },
+      ctx({ checkEgress: (url) => (url.startsWith("https://evil.example.net/") ? refusal : undefined) })
+    );
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toBe(`https://example.com/go redirected to https://evil.example.net/?d=secret. ${refusal}`);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("gives up after five redirects", async () => {
+    let hop = 0;
+    const { fetch, calls } = fakeFetch(() => new Response(null, { status: 302, headers: { location: `/hop-${++hop}` } }));
+    const out = await readPageTool({ fetch }).execute({ url: "https://example.com/loop" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toMatch(/too many redirects/i);
+    expect(calls).toHaveLength(6);
+  });
+
+  it("reports a redirect with no Location as an error", async () => {
+    const { fetch } = fakeFetch(() => new Response(null, { status: 302 }));
+    const out = await readPageTool({ fetch }).execute({ url: "https://example.com/nowhere" }, ctx());
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toContain("302");
   });
 
   it("returns plain text and JSON as they are", async () => {

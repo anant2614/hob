@@ -16,6 +16,12 @@ export interface ToolCtx {
   readonly tainted: boolean;
   /** Stream running output to the UI. */
   output(chunk: string): void;
+  /**
+   * Why Hob may not contact `url` now, or undefined when it may. Policy checks
+   * a tool's declared `egress` before it runs; a tool that reaches further
+   * hosts, such as redirect targets, asks here before each one.
+   */
+  checkEgress(url: string): string | undefined;
 }
 
 export interface ToolOutput {

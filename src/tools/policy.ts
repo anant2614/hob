@@ -32,7 +32,7 @@ export class Policy {
     this.#store = store;
   }
 
-  async run<A>(spec: ToolSpec<A>, args: A, ctx: Omit<ToolCtx, "tainted">): Promise<ToolOutput> {
+  async run<A>(spec: ToolSpec<A>, args: A, ctx: Omit<ToolCtx, "tainted" | "checkEgress">): Promise<ToolOutput> {
     if (spec.effect === "side-effect") {
       return textOutput(
         `Not run: ${spec.name} would change something outside Hob, and this version has no approval step, so it never runs such tools.`,
@@ -40,27 +40,29 @@ export class Policy {
       );
     }
 
-    const tainted = this.#store.conversations.isTainted(ctx.conversation);
-    if (tainted && spec.egress) {
-      const target = spec.egress(args);
-      if (target !== undefined) {
-        const host = hostOf(target);
-        if (host === undefined) return textOutput(`Not run: ${JSON.stringify(target)} is not an http(s) URL.`, true);
-        if (!this.#store.conversations.hasOwnerHost(ctx.conversation, host)) {
-          return textOutput(
-            `Not fetched: this conversation contains untrusted web content, so Hob only contacts sites the owner named in their own messages, and ${host} is not one of them. Ask the owner whether to read it; once they name it, you can try again.`,
-            true
-          );
-        }
-      }
-    }
+    const target = spec.egress?.(args);
+    const refusal = target === undefined ? undefined : this.#egressRefusal(ctx.conversation, target);
+    if (refusal !== undefined) return textOutput(refusal, true);
 
-    const out = await spec.execute(args, { ...ctx, tainted });
+    const out = await spec.execute(args, {
+      ...ctx,
+      tainted: this.#store.conversations.isTainted(ctx.conversation),
+      checkEgress: (url) => this.#egressRefusal(ctx.conversation, url)
+    });
     if (out.untrusted === undefined) return out;
 
     this.#store.conversations.taint(ctx.conversation, out.untrusted.source);
     const source = out.untrusted.source;
     const content = out.content.map((item) => ({ type: "text" as const, text: labelUntrusted(item.text, source) }));
     return out.isError ? { content, isError: true } : { content };
+  }
+
+  /** Why the conversation may not contact `target` now: once tainted, it reaches only hosts the owner named. */
+  #egressRefusal(conversation: string, target: string): string | undefined {
+    if (!this.#store.conversations.isTainted(conversation)) return undefined;
+    const host = hostOf(target);
+    if (host === undefined) return `Not run: ${JSON.stringify(target)} is not an http(s) URL.`;
+    if (this.#store.conversations.hasOwnerHost(conversation, host)) return undefined;
+    return `Not fetched: this conversation contains untrusted web content, so Hob only contacts sites the owner named in their own messages, and ${host} is not one of them. Ask the owner whether to read it; once they name it, you can try again.`;
   }
 }
