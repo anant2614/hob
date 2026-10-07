@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AppStore } from "../src/agent/store";
 import { forgetTool, rememberTool } from "../src/tools/memory";
+import { Policy } from "../src/tools/policy";
 import type { ToolCtx } from "../src/tools/spec";
 import { readPageTool } from "../src/tools/web";
 import { withSql } from "./helpers";
@@ -123,6 +124,25 @@ describe("read_page", () => {
     expect(text.length).toBeLessThanOrEqual(50_200);
     expect(text).toMatch(/\[Truncated: .+\]$/);
   });
+
+  it("keeps a long page in any script inside Pi's 50 KB, 2,000-line bound, with its note and closing label", () =>
+    withSql(async (sql) => {
+      const policy = new Policy(new AppStore(sql));
+      const longUrl = `https://example.com/page?${"q=1&".repeat(800)}`;
+      for (const [index, unit] of ["word ", "слово ", "単語", "🙂"].entries()) {
+        const body = Array.from({ length: 3000 }, () => unit.repeat(40)).join("\n");
+        const { fetch } = fakeFetch((url) =>
+          withUrl(new Response(`<title>${unit.repeat(500)}</title><pre>${body}</pre>`, { headers: { "content-type": "text/html" } }), url)
+        );
+        // A conversation per page: the first read taints its conversation.
+        const { tainted: _tainted, ...context } = ctx({ conversation: `page-${index}` });
+        const out = await policy.run(readPageTool({ fetch }), { url: longUrl }, context);
+        const text = out.content.map((item) => item.text).join("");
+        expect(new TextEncoder().encode(text).length, unit).toBeLessThanOrEqual(50 * 1024);
+        expect(text.split("\n").length - 1, unit).toBeLessThan(2000);
+        expect(text, unit).toMatch(/\[Truncated: .+\]\n<\/untrusted>$/);
+      }
+    }));
 
   it("stops reading a body once it passes the byte cap", async () => {
     const chunk = new TextEncoder().encode("a".repeat(64 * 1024));

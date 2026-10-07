@@ -1,12 +1,20 @@
 import { htmlToText } from "./html";
 import { textOutput, type ToolOutput, type ToolSpec } from "./spec";
+import { clip } from "./text";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024;
-// Pi's own tool-output limits are 50 KB or 2,000 lines; stay inside them.
-const MAX_CHARS = 50_000;
-const MAX_LINES = 2_000;
+// Pi keeps the first 50 KB (UTF-8) or 2,000 lines of a tool result and drops
+// the rest. Leave room under both for the header, the truncation note and
+// Policy's <untrusted> label, so none of them is cut off.
+const MAX_TEXT_BYTES = 45 * 1024;
+const MAX_LINES = 1_950;
+const MAX_TITLE = 300;
+const MAX_URL_SHOWN = 500;
 const USER_AGENT = "Mozilla/5.0 (compatible; Hob/0.1; personal assistant)";
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 export type ReadPageOptions = {
   /** The network. Tests pass a stand-in. */
@@ -87,11 +95,28 @@ async function readCapped(
   }
 }
 
-function limit(text: string, bodyTruncated: boolean, maxBytes: number): string {
+/** The start of `text` within MAX_LINES lines and MAX_TEXT_BYTES bytes, cut at a line end where it can be. */
+function head(text: string): string {
   let shown = text;
-  const lines = shown.split("\n");
-  if (lines.length > MAX_LINES) shown = lines.slice(0, MAX_LINES).join("\n");
-  if (shown.length > MAX_CHARS) shown = shown.slice(0, MAX_CHARS);
+  let newlines = 0;
+  for (let at = shown.indexOf("\n"); at !== -1; at = shown.indexOf("\n", at + 1)) {
+    if (++newlines === MAX_LINES) {
+      shown = shown.slice(0, at);
+      break;
+    }
+  }
+  const bytes = encoder.encode(shown);
+  if (bytes.length <= MAX_TEXT_BYTES) return shown;
+  let end = bytes.lastIndexOf(0x0a, MAX_TEXT_BYTES);
+  if (end <= 0) {
+    end = MAX_TEXT_BYTES;
+    while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) end--; // back to the start of a character
+  }
+  return decoder.decode(bytes.subarray(0, end));
+}
+
+function limit(text: string, bodyTruncated: boolean, maxBytes: number): string {
+  const shown = head(text);
   if (shown.length === text.length && !bodyTruncated) return text;
   const reasons = [
     ...(bodyTruncated ? [`the page is larger than ${Math.round(maxBytes / 1024)} KB`] : []),
@@ -163,7 +188,10 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
       }
 
       const page = isHtml(type) ? htmlToText(body.text, finalUrl) : { text: body.text.trim() };
-      const header = [...(page.title ? [`Title: ${page.title}`] : []), `URL: ${finalUrl}`].join("\n");
+      const header = [
+        ...(page.title ? [`Title: ${clip(page.title, MAX_TITLE)}`] : []),
+        `URL: ${clip(finalUrl, MAX_URL_SHOWN)}`
+      ].join("\n");
       const text = page.text === "" ? "(The page has no readable text.)" : limit(page.text, body.truncated, maxBytes);
       return { content: [{ type: "text", text: `${header}\n\n${text}` }], untrusted: { source: finalUrl } };
     }

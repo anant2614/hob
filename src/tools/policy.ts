@@ -1,6 +1,10 @@
 import type { AppStore } from "../agent/store";
 import { hostOf } from "./hosts";
 import { textOutput, type ToolCtx, type ToolOutput, type ToolSpec } from "./spec";
+import { clip } from "./text";
+
+/** The label's source is for orientation; a tracking URL several KB long would crowd out the content. */
+const MAX_SOURCE = 500;
 
 export type PolicyStore = {
   readonly conversations: Pick<AppStore["conversations"], "isTainted" | "taint" | "hasOwnerHost">;
@@ -13,7 +17,7 @@ function escapeAttribute(value: string): string {
 /** Wrap third-party text so the model can tell it apart, and so it cannot close the wrapper itself. */
 function labelUntrusted(text: string, source: string): string {
   const body = text.replace(/<(\/?)untrusted/gi, "&lt;$1untrusted");
-  return `<untrusted source="${escapeAttribute(source)}">\n${body}\n</untrusted>`;
+  return `<untrusted source="${escapeAttribute(clip(source, MAX_SOURCE))}">\n${body}\n</untrusted>`;
 }
 
 /**
