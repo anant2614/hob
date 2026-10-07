@@ -37,7 +37,7 @@ export type ModelSource =
   | {
       readonly kind: "gateway";
       readonly binding: Ai;
-      /** A pi-ai gateway specifier such as "anthropic/claude-opus-5-5", or a Workers AI "@cf/…" id. */
+      /** A pi-ai gateway specifier, `<provider>/<model>` as in wrangler.jsonc's MODEL_ID, or a Workers AI "@cf/…" id. */
       readonly modelId: string;
       readonly gatewayId: string;
       /** Attached to every gateway log entry. At most 5 entries. Built inside the harness factory. */
@@ -151,8 +151,8 @@ export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
         context
       );
     },
-    // Opus 5.5 always thinks; "low" asks for low effort. Never use "off" there:
-    // pi-ai would send thinking: disabled, which that model rejects.
+    // The default model always thinks; "low" asks for low effort. Never use "off":
+    // pi-ai would send thinking: disabled, which a model that always thinks rejects.
     defaults: { model, thinkingLevel: "low" }
   });
 
