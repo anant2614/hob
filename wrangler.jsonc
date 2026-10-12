@@ -1,26 +1,27 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "hob",
+  "name": "fennec",
   "main": "src/worker.ts",
   // >= 2026-02-24: deleteAll() also deletes alarms.
   // >= 2026-10-01: pending I/O (setTimeout, RPC, waitUntil) keeps a Durable Object
-  // alive, and billed, for up to 15 minutes. Hob never uses ctx.waitUntil or Pi
+  // alive, and billed, for up to 15 minutes. Fennec never uses ctx.waitUntil or Pi
   // timers for that reason.
   "compatibility_date": "2026-10-06",
   "compatibility_flags": ["nodejs_compat"],
   // Workers AI and AI Gateway. The binding has no local simulation, so `pnpm dev`
-  // spends real money.
+  // calls the real model: free within Workers AI's daily allowance for the
+  // default MODEL_ID, real money for a paid model.
   "ai": { "binding": "AI", "remote": true },
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/chat", "/chat/*"]
+    "run_worker_first": ["/chat", "/chat/*", "/hooks/telegram"]
   },
   "durable_objects": {
     "bindings": [{ "name": "PiAgent", "class_name": "PiAgent" }]
   },
   // The legacy migrations flow on purpose: switching to "exports" is one-way.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PiAgent"] }],
-  // Hob is reachable only on the custom domain that the hostname-based Access
+  // Fennec is reachable only on the custom domain that the hostname-based Access
   // application protects. Uncomment and set your hostname before deploying.
   "workers_dev": false,
   "preview_urls": false,
@@ -32,15 +33,20 @@
     // The id names your Durable Object (u:<id>): set it once and never change it.
     "OWNER_EMAIL": "you@example.com",
     "OWNER_USER_ID": "usr_change_me",
-    // IANA time zone for the date Hob sees, e.g. "Europe/London".
+    // IANA time zone for the date Fennec sees, e.g. "Europe/London".
     "OWNER_TIMEZONE": "UTC",
-    // A pi-ai Cloudflare AI Gateway id (`<provider>/<model>`, hyphens not dots) or a
-    // Workers AI id such as "@cf/zai-org/glm-5.3-flash".
-    "MODEL_ID": "anthropic/claude-opus-5-5",
-    // The AI Gateway that carries Hob's model calls; put the spend limit on it.
-    "AI_GATEWAY_ID": "hob"
+    // A Workers AI id ("@cf/…") or a pi-ai Cloudflare AI Gateway id (`<provider>/<model>`,
+    // hyphens not dots). The default runs on Workers AI's free daily allowance, even on
+    // Workers Free. "anthropic/claude-opus-5-5" is far stronger but needs AI Gateway credits.
+    "MODEL_ID": "@cf/zai-org/glm-4.7-flash",
+    // The AI Gateway that carries Fennec's model calls; put the spend limit on it.
+    // "default" is created on the first request. Any other id must be created in the
+    // dashboard first, or every model call fails with "Please configure AI Gateway".
+    "AI_GATEWAY_ID": "default"
   },
   // The audience (AUD) tag of the Access application: `wrangler secret put ACCESS_AUD`.
+  // Telegram is optional and off until scripts/telegram-setup.sh sets TELEGRAM_BOT_TOKEN,
+  // TELEGRAM_WEBHOOK_SECRET and TELEGRAM_OWNER_ID as secrets (see src/env.d.ts).
   "secrets": { "required": ["ACCESS_AUD"] },
   "observability": {
     "enabled": true,

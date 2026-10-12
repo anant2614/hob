@@ -66,7 +66,7 @@ async function step(name, run) {
 }
 
 async function send(page, text) {
-  const box = page.getByLabel("Message Hob");
+  const box = page.getByLabel("Message Fennec");
   await box.fill(text);
   await box.press("Enter");
 }
@@ -74,7 +74,7 @@ async function send(page, text) {
 async function openPage(browser, options) {
   const page = await (await browser.newContext(options)).newPage();
   page.on("pageerror", (error) => pageErrors.push(String(error)));
-  // Vite's HMR socket would reload the page when the demo restarts; a deploy drops only Hob's socket.
+  // Vite's HMR socket would reload the page when the demo restarts; a deploy drops only Fennec's socket.
   await page.routeWebSocket(/\?token=/, () => {});
   return page;
 }
@@ -87,7 +87,7 @@ async function openPage(browser, options) {
   const browser = await chromium.launch();
 
   const page = await openPage(browser, { viewport: { width: 1280, height: 860 }, colorScheme: "light" });
-  // Hob's own socket goes through a relay that can lose one frame, as a dead socket would.
+  // Fennec's own socket goes through a relay that can lose one frame, as a dead socket would.
   let loseNext = false;
   await page.routeWebSocket(/\/chat/, (socket) => {
     const server = socket.connectToServer();
@@ -104,8 +104,8 @@ async function openPage(browser, options) {
   await step("loads, connects and offers a first message", async () => {
     await page.goto(base);
     await page.getByText(/^Ready\./).waitFor({ timeout: 30_000 });
-    await page.getByRole("img", { name: "Hob is here" }).waitFor();
-    await page.getByText("Tell Hob something worth remembering, or give it a link to read.").waitFor();
+    await page.getByRole("img", { name: "Fennec is here" }).waitFor();
+    await page.getByText("Tell Fennec something worth remembering, or give it a link to read.").waitFor();
   });
   await page.screenshot({ path: path.join(shots, "1-empty-desktop.png") });
 
@@ -130,7 +130,7 @@ async function openPage(browser, options) {
 
   await step("a tool note opens to show what came back", async () => {
     await page.getByText("Read example.com/post").click();
-    await page.getByText("From the web. Hob treats it as information, not instructions.").waitFor();
+    await page.getByText("From the web. Fennec treats it as information, not instructions.").waitFor();
   });
   await page.screenshot({ path: path.join(shots, "2-conversation-desktop.png") });
 
@@ -166,16 +166,16 @@ async function openPage(browser, options) {
     await drawer.getByText(/Added by you on/).waitFor();
 
     await drawer.getByLabel("Name").fill("José");
-    await drawer.getByLabel("What Hob should know").fill("My neighbour, plays the cello");
+    await drawer.getByLabel("What Fennec should know").fill("My neighbour, plays the cello");
     await drawer.getByRole("button", { name: "Save memory" }).click();
     await drawer.getByText("josé", { exact: true }).waitFor({ timeout: 10_000 });
     if ((await drawer.getByLabel("Name").inputValue()) !== "") throw new Error("the form kept a saved entry");
 
     await drawer.getByLabel("Name").fill("!!!");
-    await drawer.getByLabel("What Hob should know").fill("Nothing usable in the key");
+    await drawer.getByLabel("What Fennec should know").fill("Nothing usable in the key");
     await drawer.getByRole("button", { name: "Save memory" }).click();
     await drawer.getByRole("alert").waitFor({ timeout: 10_000 });
-    if ((await drawer.getByLabel("What Hob should know").inputValue()) !== "Nothing usable in the key") {
+    if ((await drawer.getByLabel("What Fennec should know").inputValue()) !== "Nothing usable in the key") {
       throw new Error("the form lost a refused entry");
     }
     if ((await page.locator(".dock .alert").count()) > 0) throw new Error("the error also landed behind the drawer");
@@ -213,7 +213,7 @@ async function openPage(browser, options) {
     await page.getByRole("menuitem", { name: "New topic" }).click();
     await page.getByRole("menuitem", { name: "Start new topic" }).click();
     await page.getByText("Includes web pages").waitFor({ state: "detached", timeout: 15_000 });
-    await page.getByText("Tell Hob something worth remembering, or give it a link to read.").waitFor({ timeout: 15_000 });
+    await page.getByText("Tell Fennec something worth remembering, or give it a link to read.").waitFor({ timeout: 15_000 });
   });
   await page.screenshot({ path: path.join(shots, "6-new-topic-desktop.png") });
 
@@ -235,7 +235,7 @@ async function openPage(browser, options) {
 
   await step("reconnects that keep failing suggest a reload, until one works", async () => {
     await stopDemo(demo);
-    await page.getByText("Can't reach Hob. If you were signed out, reload to sign in again.").waitFor({ timeout: 60_000 });
+    await page.getByText("Can't reach Fennec. If you were signed out, reload to sign in again.").waitFor({ timeout: 60_000 });
     await page.getByRole("button", { name: "Reload" }).waitFor();
     await page.screenshot({ path: path.join(shots, "9-reload-hint.png") });
     demo = startDemo();

@@ -38,7 +38,7 @@ function FormError({ error }: { readonly error: string | null }) {
 
 function savedWhen(item: MemoryItem): string {
   const date = new Date(item.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-  return item.source === "owner" ? `Added by you on ${date}` : `Saved by Hob on ${date}`;
+  return item.source === "owner" ? `Added by you on ${date}` : `Saved by Fennec on ${date}`;
 }
 
 function MemoryRow({
@@ -94,7 +94,7 @@ function MemoryRow({
       {item.tainted && !editing ? (
         <div className="memory-flag">
           <WarningIcon size={15} weight="bold" aria-hidden="true" />
-          <p>Saved after reading a web page. Keep it only if it's true; until you keep or delete it, Hob only opens sites you name.</p>
+          <p>Saved after reading a web page. Keep it only if it's true; until you keep or delete it, Fennec only opens sites you name.</p>
           <button type="button" className="btn" disabled={pending} onClick={() => run(() => onSave(item.key, item.text))}>
             Keep
           </button>
@@ -143,7 +143,7 @@ function AddMemory({ onSave, full }: { readonly onSave: Save; readonly full: boo
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (pending || key.trim() === "" || text.trim() === "") return;
-    // Clear the form only once Hob has the memory: offline, or refused, the text stays.
+    // Clear the form only once Fennec has the memory: offline, or refused, the text stays.
     if (await run(() => onSave(key, text))) {
       setKey("");
       setText("");
@@ -157,7 +157,7 @@ function AddMemory({ onSave, full }: { readonly onSave: Save; readonly full: boo
         <input value={key} maxLength={64} placeholder="e.g. partner" onChange={(event) => setKey(event.target.value)} />
       </label>
       <label>
-        <span>What Hob should know</span>
+        <span>What Fennec should know</span>
         <textarea
           value={text}
           maxLength={MAX_TEXT}
@@ -217,7 +217,7 @@ export function MemoryDrawer({
           <div>
             <h2 id="memory-title">Memory</h2>
             <p className="hint">
-              Hob reads these before every reply. {items.length} of {MAX_MEMORIES} used.
+              Fennec reads these before every reply. {items.length} of {MAX_MEMORIES} used.
             </p>
           </div>
           <button ref={closeRef} type="button" className="icon-btn" aria-label="Close memory" onClick={onClose}>
@@ -226,7 +226,7 @@ export function MemoryDrawer({
         </header>
         <div className="drawer-body">
           {items.length === 0 ? (
-            <p className="empty-note">Nothing saved yet. Tell Hob something about yourself, or add a memory below.</p>
+            <p className="empty-note">Nothing saved yet. Tell Fennec something about yourself, or add a memory below.</p>
           ) : (
             <ul className="memories">
               {[...flagged, ...rest].map((item) => (

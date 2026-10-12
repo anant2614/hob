@@ -1,4 +1,4 @@
-/** Who a request is from, as Hob's own opaque id (never the identity provider's subject). */
+/** Who a request is from, as Fennec's own opaque id (never the identity provider's subject). */
 export type Principal = { readonly userId: string };
 
 /**

@@ -74,7 +74,7 @@ describe("statusText", () => {
     expect(statusText(state)).toBe("Reconnecting…");
     expect(needsReload(state)).toBe(false);
     state = reduceApp(reduceApp(state, { type: "closed" }), { type: "closed" });
-    expect(statusText(state)).toBe("Can't reach Hob. If you were signed out, reload to sign in again.");
+    expect(statusText(state)).toBe("Can't reach Fennec. If you were signed out, reload to sign in again.");
     expect(needsReload(state)).toBe(true);
     expect(needsReload(reduceApp(state, { type: "open" }))).toBe(false);
   });

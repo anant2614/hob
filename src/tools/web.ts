@@ -13,7 +13,7 @@ const MAX_TITLE = 300;
 const MAX_URL_SHOWN = 500;
 const MAX_REDIRECTS = 5;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
-const USER_AGENT = "Mozilla/5.0 (compatible; Hob/0.1; personal assistant)";
+const USER_AGENT = "Mozilla/5.0 (compatible; Fennec/0.1; personal assistant)";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -209,7 +209,7 @@ export function readPageTool(options: ReadPageOptions = {}): ToolSpec<{ url: str
       if (!isHtml(type) && !isText(type)) {
         await response.body?.cancel().catch(() => undefined);
         const named = MEDIA_TYPE.test(type) ? type : "a type it doesn't name properly";
-        return textOutput(`${where()} is ${named}; Hob can only read HTML and text pages.`, true);
+        return textOutput(`${where()} is ${named}; Fennec can only read HTML and text pages.`, true);
       }
 
       let body: { text: string; truncated: boolean };

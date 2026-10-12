@@ -2,6 +2,7 @@ import { getAgentByName } from "agents";
 import { authenticate } from "./auth/access";
 import { stripInternalHeaders } from "./auth/headers";
 import { agentName } from "./auth/principal";
+import { handleTelegramWebhook, TELEGRAM_PATH } from "./channels/telegram";
 
 export { PiAgent } from "./agent/agent";
 
@@ -14,6 +15,16 @@ export { PiAgent } from "./agent/agent";
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
+
+    // Telegram can't pass Access, so its webhook proves itself with a shared secret
+    // and the owner's Telegram id instead (Access bypasses exactly this path).
+    if (url.pathname === TELEGRAM_PATH) {
+      return handleTelegramWebhook(request, env, async (message) => {
+        const agent = await getAgentByName(env.PiAgent, agentName({ userId: env.OWNER_USER_ID }));
+        await agent.receiveTelegram(message);
+      });
+    }
+
     const principal = await authenticate(request, env, { dev: import.meta.env.DEV });
     if (principal === null) return new Response("Forbidden", { status: 403 });
 

@@ -23,7 +23,7 @@ export function rememberTool(store: MemoryStore): ToolSpec<{ key: string; text: 
       const existing = ctx.tainted ? store.memory.get(args.key) : undefined;
       if (existing !== undefined && !existing.tainted) {
         return textOutput(
-          `Not saved: "${existing.key}" holds a confirmed memory, and Hob can't change one while untrusted web content is in play. Save it under a new key, or ask the owner to update "${existing.key}" in the Memory panel.`,
+          `Not saved: "${existing.key}" holds a confirmed memory, and Fennec can't change one while untrusted web content is in play. Save it under a new key, or ask the owner to update "${existing.key}" in the Memory panel.`,
           true
         );
       }
@@ -48,7 +48,7 @@ export function forgetTool(store: MemoryStore): ToolSpec<{ key: string }> {
       const key = normalizeKey(args.key) ?? args.key;
       if (ctx.tainted && store.memory.get(args.key)?.tainted === false) {
         return textOutput(
-          `Not forgotten: "${key}" is a confirmed memory, and Hob can't delete one while untrusted web content is in play. Ask the owner to delete it in the Memory panel.`,
+          `Not forgotten: "${key}" is a confirmed memory, and Fennec can't delete one while untrusted web content is in play. Ask the owner to delete it in the Memory panel.`,
           true
         );
       }

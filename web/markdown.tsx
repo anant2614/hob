@@ -31,7 +31,7 @@ const CONTROLS = { code: { copy: true, download: false }, table: false, mermaid:
 export default memo(function Markdown({ text, streaming }: { readonly text: string; readonly streaming: boolean }) {
   return (
     <Streamdown
-      className="prose-hob"
+      className="prose-fennec"
       mode={streaming ? "streaming" : "static"}
       isAnimating={streaming}
       components={COMPONENTS as never}

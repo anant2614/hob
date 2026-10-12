@@ -1,6 +1,8 @@
 import { Agent, type Connection, type ConnectionContext, type WSMessage } from "agents";
 import { createPiRuntime, type ModelSource, type PiRuntime } from "../harness/pi";
+import { sendTelegramMessage, type TelegramMessage } from "../channels/telegram";
 import {
+  MAX_INPUT_CHARS,
   parseClientMessage,
   PROTOCOL,
   ROOT_CONVERSATION,
@@ -12,6 +14,7 @@ import { extractHosts } from "../tools/hosts";
 import { Policy } from "../tools/policy";
 import type { ToolSpec } from "../tools/spec";
 import { dateSection, PERSONA } from "./persona";
+import type { OperationResult, Receipt } from "./runtime";
 import { AppStore, type StoreChange } from "./store";
 import { Watches } from "./watches";
 
@@ -35,11 +38,38 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** How the agent paces Telegram replies. Tests shorten it. */
+export type TelegramTiming = {
+  /** Seconds after a message arrives before the first check for its answer. */
+  readonly firstCheckSeconds: number;
+  /** Seconds between later checks, and the step of the backoff after a failed send. */
+  readonly recheckSeconds: number;
+  /** How long one check waits for the answer before scheduling the next one. */
+  readonly waitMs: number;
+  /** With no answer after this long, tell the owner and stop checking. */
+  readonly giveUpMs: number;
+  /** Failed sends before a reply is given up. */
+  readonly sendAttempts: number;
+};
+
+const TELEGRAM_TIMING: TelegramTiming = {
+  firstCheckSeconds: 2,
+  recheckSeconds: 5,
+  waitMs: 5_000,
+  giveUpMs: 20 * 60_000,
+  sendAttempts: 5
+};
+
+function replyText(result: OperationResult): string {
+  if (result.status === "done") return result.text ?? "";
+  return `Sorry, I couldn't answer that (${result.reason ?? "unknown error"}).`;
+}
+
 /**
  * One owner's agent: a Durable Object named by the server (`u:<userId>`).
- * Wiring only: the WebSocket protocol, Hob's own state, and Pi behind the
+ * Wiring only: the WebSocket protocol, Fennec's own state, and Pi behind the
  * AgentRuntime port. Pi runs the loop and keeps the transcript in its pi_*
- * tables; Hob keeps memory and taint in app_* tables in the same database.
+ * tables; Fennec keeps memory and taint in app_* tables in the same database.
  */
 export class PiAgent extends Agent<Env> {
   // The name is the owner's identity; never send it to clients.
@@ -77,26 +107,104 @@ export class PiAgent extends Agent<Env> {
       binding: this.env.AI,
       modelId: this.env.MODEL_ID,
       gatewayId: this.env.AI_GATEWAY_ID,
-      metadata: () => ({ app: "hob" })
+      metadata: () => ({ app: "fennec" })
     };
   }
 
-  /** The model's tools. None changes anything outside Hob in v0. */
+  /** The model's tools. None changes anything outside Fennec in v0. */
   protected tools(): ToolSpec[] {
     return coreTools(this.store);
   }
 
-  // The wire carries only Hob's protocol: no identity, state or MCP frames.
+  /** How replies reach the Telegram Bot API. Tests substitute a recorder. */
+  protected telegramFetch(): typeof fetch {
+    return (input, init) => fetch(input, init);
+  }
+
+  protected telegramTiming(): TelegramTiming {
+    return TELEGRAM_TIMING;
+  }
+
+  /**
+   * A message from the owner on Telegram, already verified by the edge. It joins
+   * the same conversation as the web app. The reply is owed in the outbox and
+   * sent by a scheduled check, so it survives an eviction or a deploy.
+   */
+  async receiveTelegram(message: TelegramMessage): Promise<Receipt> {
+    const op = `tg:${message.updateId}`;
+    // The owner's own words, as on the web: sites named here may be visited while tainted.
+    this.store.conversations.addOwnerHosts(ROOT_CONVERSATION, extractHosts(message.text));
+    this.store.outbox.add(op, "telegram", message.chatId);
+    // The update id is the operation id, so a redelivered update is not answered twice.
+    const receipt = await this.pi.runtime.submit(message.text.slice(0, MAX_INPUT_CHARS), {
+      conversation: ROOT_CONVERSATION,
+      operationId: op
+    });
+    await this.schedule(this.telegramTiming().firstCheckSeconds, "deliverTelegramReply", { op }, { idempotent: true });
+    console.log(JSON.stringify({ event: "telegram_submit", agent: this.name, ...receipt }));
+    return receipt;
+  }
+
+  /** Scheduled: send the answer once the run has settled; otherwise check again later. */
+  async deliverTelegramReply({ op }: { op: string }): Promise<void> {
+    const timing = this.telegramTiming();
+    const item = this.store.outbox.get(op);
+    if (item === undefined || item.status !== "pending") return;
+
+    const result = await this.#settled(op, timing.waitMs);
+    let text: string;
+    if (result !== undefined) {
+      text = replyText(result);
+    } else if (Date.now() - item.createdAt < timing.giveUpMs) {
+      await this.schedule(timing.recheckSeconds, "deliverTelegramReply", { op });
+      return;
+    } else {
+      text = "This is taking much longer than it should, so I've stopped waiting. Open the web app to see where it got to.";
+    }
+
+    const token = this.env.TELEGRAM_BOT_TOKEN;
+    if (!token) {
+      console.error("TELEGRAM_BOT_TOKEN is not set, so a Telegram reply can't be sent");
+      this.store.outbox.markFailed(op);
+      return;
+    }
+    try {
+      await sendTelegramMessage(this.telegramFetch(), token, item.target, text);
+      this.store.outbox.markSent(op);
+    } catch (error) {
+      const attempts = this.store.outbox.recordFailedSend(op);
+      console.error(JSON.stringify({ event: "telegram_send_failed", op, attempts, error: errorMessage(error) }));
+      if (attempts >= timing.sendAttempts) this.store.outbox.markFailed(op);
+      else await this.schedule(timing.recheckSeconds * attempts, "deliverTelegramReply", { op });
+    }
+  }
+
+  /** The operation's result if it settles within `ms`, otherwise undefined. */
+  async #settled(op: string, ms: number): Promise<OperationResult | undefined> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      return await this.pi.runtime.wait(op, { conversation: ROOT_CONVERSATION, signal: controller.signal });
+    } catch (error) {
+      if (controller.signal.aborted) return undefined;
+      throw error;
+    } finally {
+      // A pending timer keeps the object awake, and billed, after the reply has gone.
+      clearTimeout(timer);
+    }
+  }
+
+  // The wire carries only Fennec's protocol: no identity, state or MCP frames.
   override shouldSendProtocolMessages(): boolean {
     return false;
   }
 
-  // Clients may not write Agent state; Hob does not use it.
+  // Clients may not write Agent state; Fennec does not use it.
   override shouldConnectionBeReadonly(): boolean {
     return true;
   }
 
-  // Hob has no sub-agents. The edge forwards only the exact /chat path, and
+  // Fennec has no sub-agents. The edge forwards only the exact /chat path, and
   // this refuses /sub/<class>/<name> routing should anything else reach here.
   override async onBeforeSubAgent(): Promise<Response> {
     return new Response("Not found", { status: 404 });

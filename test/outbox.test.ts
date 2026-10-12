@@ -48,9 +48,9 @@ describe("Requests", () => {
     const requests = new Requests();
     const first = requests.wait("m1");
     const second = requests.wait("m2");
-    requests.failAll("Hob went offline");
-    await expect(first).rejects.toThrow("Hob went offline");
-    await expect(second).rejects.toThrow("Hob went offline");
+    requests.failAll("Fennec went offline");
+    await expect(first).rejects.toThrow("Fennec went offline");
+    await expect(second).rejects.toThrow("Fennec went offline");
     expect(requests.settle({ type: "result", id: "m1", result: null })).toBe(false);
   });
 

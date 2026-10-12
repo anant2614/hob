@@ -1,6 +1,6 @@
 {
-  "name": "Hob",
-  "short_name": "Hob",
+  "name": "Fennec",
+  "short_name": "Fennec",
   "description": "Your private assistant.",
   "start_url": "/",
   "display": "standalone",

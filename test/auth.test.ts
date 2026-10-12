@@ -4,7 +4,7 @@ import { authenticate, verifyAccessJwt } from "../src/auth/access";
 import { stripInternalHeaders } from "../src/auth/headers";
 import { agentName } from "../src/auth/principal";
 
-const TEAM = "https://hob-test.cloudflareaccess.com";
+const TEAM = "https://fennec-test.cloudflareaccess.com";
 const AUD = "aud-tag-123";
 const OWNER = "Owner@Example.com";
 

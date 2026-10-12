@@ -1,6 +1,6 @@
 {
-  "name": "hob",
-  "description": "Hob: a private personal agent on Cloudflare, with Pi Durable running the agent loop inside a Durable Object.",
+  "name": "fennec",
+  "description": "Fennec: a private personal agent on Cloudflare, with Pi Durable running the agent loop inside a Durable Object.",
   "private": true,
   "type": "module",
   "version": "0.0.0",

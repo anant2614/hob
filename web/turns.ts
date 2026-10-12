@@ -3,17 +3,17 @@ import type { MessagePart, TranscriptMessage } from "./transcript";
 
 export type ToolResult = Extract<MessagePart, { type: "tool-result" }>;
 
-/** The logbook's rows: what you said, what Hob did and said, and notices such as "New topic". */
+/** The logbook's rows: what you said, what Fennec did and said, and notices such as "New topic". */
 export type Turn =
   | { readonly kind: "you"; readonly id: string; readonly message: TranscriptMessage }
-  | { readonly kind: "hob"; readonly id: string; readonly messages: readonly TranscriptMessage[] }
+  | { readonly kind: "fennec"; readonly id: string; readonly messages: readonly TranscriptMessage[] }
   | { readonly kind: "notice"; readonly id: string; readonly text: string };
 
 export function textOf(message: TranscriptMessage): string {
   return message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
-/** Group a transcript into turns: each run of Hob's messages and tool results becomes one turn. */
+/** Group a transcript into turns: each run of Fennec's messages and tool results becomes one turn. */
 export function groupTurns(messages: readonly TranscriptMessage[]): Turn[] {
   const turns: Turn[] = [];
   for (const message of messages) {
@@ -24,8 +24,8 @@ export function groupTurns(messages: readonly TranscriptMessage[]): Turn[] {
       if (text !== "") turns.push({ kind: "notice", id: message.id, text });
     } else {
       const last = turns.at(-1);
-      if (last?.kind === "hob") turns[turns.length - 1] = { ...last, messages: [...last.messages, message] };
-      else turns.push({ kind: "hob", id: message.id, messages: [message] });
+      if (last?.kind === "fennec") turns[turns.length - 1] = { ...last, messages: [...last.messages, message] };
+      else turns.push({ kind: "fennec", id: message.id, messages: [message] });
     }
   }
   return turns;
@@ -65,7 +65,7 @@ export function resultText(result: ToolResult | undefined): string {
   return (result?.content ?? []).map((item) => (item.type === "text" ? item.text : "")).join("\n");
 }
 
-/** One line, in plain words, for a tool call: what Hob did, is doing, or could not do. */
+/** One line, in plain words, for a tool call: what Fennec did, is doing, or could not do. */
 export function describeTool(name: string, args: JsonValue, result: ToolResult | undefined, running: boolean): ToolNote {
   const text = resultText(result);
   // Pi's own wording when the owner stopped the call.
