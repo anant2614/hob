@@ -20,7 +20,7 @@ export default defineConfig({
     ]
   },
   test: {
-    name: "hob",
+    name: "fennec",
     include: [path.join(testsDir, "**/*.test.ts")],
     testTimeout: 30_000,
     hookTimeout: 30_000

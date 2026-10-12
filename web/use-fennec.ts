@@ -9,15 +9,15 @@ import { INITIAL_APP, reduceApp } from "./state";
 const OPEN = 1;
 /** How long a submission may go unanswered before the socket is presumed dead and replaced. */
 const ANSWER_TIMEOUT_MS = 10_000;
-const OFFLINE = "Hob is offline right now. Try again once it's back.";
+const OFFLINE = "Fennec is offline right now. Try again once it's back.";
 
 /**
- * Hob over its WebSocket. The browser never names a Durable Object: it
+ * Fennec over its WebSocket. The browser never names a Durable Object: it
  * connects to /chat and the Worker routes the owner to theirs. A reconnect
  * gets a fresh snapshot, which replaces the view, and sends again whatever
  * the agent hadn't acknowledged.
  */
-export function useHob() {
+export function useFennec() {
   const [state, dispatch] = useReducer(reduceApp, INITIAL_APP);
   const [outbox] = useState(() => new Outbox());
   const [requests] = useState(() => new Requests());
@@ -34,7 +34,7 @@ export function useHob() {
     },
     onClose: () => {
       dispatch({ type: "closed" });
-      requests.failAll("Hob went offline before answering. Try again once it's back.");
+      requests.failAll("Fennec went offline before answering. Try again once it's back.");
     },
     onMessage: (event: MessageEvent) => {
       if (typeof event.data !== "string") return;
@@ -66,7 +66,7 @@ export function useHob() {
   const send = useCallback(
     (message: ClientMessage): boolean => {
       if (agent.readyState !== OPEN) {
-        dispatch({ type: "notice", text: "Hob is offline right now. Your message is still in the box." });
+        dispatch({ type: "notice", text: "Fennec is offline right now. Your message is still in the box." });
         return false;
       }
       agent.send(JSON.stringify(message));
@@ -75,7 +75,7 @@ export function useHob() {
     [agent]
   );
 
-  /** Send a message whose answer the caller waits for. Rejects when Hob is offline or refuses. */
+  /** Send a message whose answer the caller waits for. Rejects when Fennec is offline or refuses. */
   const request = useCallback(
     (message: ClientMessage & { readonly id: string }): Promise<unknown> => {
       if (agent.readyState !== OPEN) return Promise.reject(new Error(OFFLINE));

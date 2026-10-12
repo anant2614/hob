@@ -3,7 +3,7 @@
   // from test/worker.ts instead of AI Gateway. Needs no Cloudflare account and
   // spends nothing. Never deploy this config.
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "hob-demo",
+  "name": "fennec-demo",
   "main": "../worker.ts",
   "compatibility_date": "2026-10-06",
   "compatibility_flags": ["nodejs_compat"],
@@ -19,12 +19,12 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PiAgent", "SqlTestObject"] }],
   "vars": {
-    "TEAM_DOMAIN": "https://hob-demo.cloudflareaccess.com",
+    "TEAM_DOMAIN": "https://fennec-demo.cloudflareaccess.com",
     "OWNER_EMAIL": "owner@example.com",
     "OWNER_USER_ID": "usr_demo",
     "OWNER_TIMEZONE": "UTC",
     "MODEL_ID": "faux/faux-1",
-    "AI_GATEWAY_ID": "hob-demo",
+    "AI_GATEWAY_ID": "fennec-demo",
     "ACCESS_AUD": "demo"
   }
 }

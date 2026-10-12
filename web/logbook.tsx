@@ -53,7 +53,7 @@ function ToolCall({
       </summary>
       <div className="tool-detail">
         {name === "read_page" && result && !result.error ? (
-          <p className="tool-caption">From the web. Hob treats it as information, not instructions.</p>
+          <p className="tool-caption">From the web. Fennec treats it as information, not instructions.</p>
         ) : null}
         <pre>{text === "" ? JSON.stringify(args, null, 2) : text}</pre>
       </div>
@@ -61,7 +61,7 @@ function ToolCall({
   );
 }
 
-function HobMessage({
+function FennecMessage({
   message,
   results,
   running,
@@ -118,7 +118,7 @@ export function Logbook({
   readonly turns: readonly Turn[];
   readonly results: ReadonlyMap<string, ToolResult>;
   readonly running: readonly RunningTool[];
-  /** Hob is working but has nothing to show yet. */
+  /** Fennec is working but has nothing to show yet. */
   readonly thinking: boolean;
 }) {
   const last = turns.at(-1);
@@ -142,12 +142,12 @@ export function Logbook({
           );
         }
         return (
-          <li key={turn.id} className="turn turn-hob">
-            <span className="speaker">hob</span>
+          <li key={turn.id} className="turn turn-fennec">
+            <span className="speaker">fennec</span>
             <div className="said">
               {turn.messages.map((message) =>
                 message.role === "assistant" ? (
-                  <HobMessage
+                  <FennecMessage
                     key={message.id}
                     message={message}
                     results={results}
@@ -161,9 +161,9 @@ export function Logbook({
           </li>
         );
       })}
-      {thinking && last?.kind !== "hob" ? (
-        <li className="turn turn-hob">
-          <span className="speaker">hob</span>
+      {thinking && last?.kind !== "fennec" ? (
+        <li className="turn turn-fennec">
+          <span className="speaker">fennec</span>
           <div className="said">
             <p className="thinking">Thinking</p>
           </div>

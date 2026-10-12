@@ -1,6 +1,6 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
-import { EMPTY_VIEW, reduceEvents, reduceView, type HobView } from "../web/view";
+import { EMPTY_VIEW, reduceEvents, reduceView, type FennecView } from "../web/view";
 import { connectAgent, transcript } from "./ws";
 
 type Usage = {
@@ -156,7 +156,7 @@ describe("a real run", () => {
   });
 });
 
-function fold(frames: { type: string; events?: readonly AgentEvent[] }[]): HobView {
+function fold(frames: { type: string; events?: readonly AgentEvent[] }[]): FennecView {
   return frames.reduce(
     (view, frame) => (frame.type === "events" && frame.events ? reduceEvents(view, frame.events) : view),
     EMPTY_VIEW

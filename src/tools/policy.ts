@@ -36,7 +36,7 @@ export class Policy {
   async run<A>(spec: ToolSpec<A>, args: A, ctx: Omit<ToolCtx, "tainted" | "checkEgress">): Promise<ToolOutput> {
     if (spec.effect === "side-effect") {
       return textOutput(
-        `Not run: ${spec.name} would change something outside Hob, and this version has no approval step, so it never runs such tools.`,
+        `Not run: ${spec.name} would change something outside Fennec, and this version has no approval step, so it never runs such tools.`,
         true
       );
     }
@@ -79,6 +79,6 @@ export class Policy {
     const host = hostOf(target);
     if (host === undefined) return `Not run: ${JSON.stringify(target)} is not an http(s) URL.`;
     if (this.#store.conversations.hasOwnerHost(conversation, host)) return undefined;
-    return `Not fetched: ${taint}, so Hob only contacts sites the owner named in their own messages, and ${host} is not one of them. Ask the owner whether to read it; once they name it, you can try again.`;
+    return `Not fetched: ${taint}, so Fennec only contacts sites the owner named in their own messages, and ${host} is not one of them. Ask the owner whether to read it; once they name it, you can try again.`;
   }
 }

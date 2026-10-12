@@ -17,7 +17,7 @@ export interface ToolCtx {
   /** Stream running output to the UI. */
   output(chunk: string): void;
   /**
-   * Why Hob may not contact `url` now, or undefined when it may. Policy checks
+   * Why Fennec may not contact `url` now, or undefined when it may. Policy checks
    * a tool's declared `egress` before it runs; a tool that reaches further
    * hosts, such as redirect targets, asks here before each one.
    */

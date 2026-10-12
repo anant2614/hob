@@ -53,8 +53,8 @@ export function Composer({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={running ? "Add something for after this answer" : "Message Hob"}
-        aria-label="Message Hob"
+        placeholder={running ? "Add something for after this answer" : "Message Fennec"}
+        aria-label="Message Fennec"
         enterKeyHint="send"
       />
       <div className="composer-actions">

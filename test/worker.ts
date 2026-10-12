@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { DurableObject } from "cloudflare:workers";
 import type { Connection, ConnectionContext } from "agents";
-import { PiAgent as HobAgent } from "../src/agent/agent";
+import { PiAgent as FennecAgent } from "../src/agent/agent";
 import type { ModelSource } from "../src/harness/pi";
 import { coreTools } from "../src/tools";
 import type { ToolSpec } from "../src/tools/spec";
@@ -87,8 +87,8 @@ function gateTool(storage: DurableObjectStorage): ToolSpec<Record<string, never>
   };
 }
 
-/** Hob's real agent, with the scripted model, a fake web and a test gate tool. */
-export class PiAgent extends HobAgent {
+/** Fennec's real agent, with the scripted model, a fake web and a test gate tool. */
+export class PiAgent extends FennecAgent {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     const sync = this.pi.syncModel;

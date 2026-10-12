@@ -5,7 +5,7 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Hob: a household spirit and a blue pilot flame.
+ * Fennec: a quiet logbook and a blue pilot flame.
  * Cool ash and soot, one flame-blue accent, amber only for "check this".
  */
 :root {
@@ -47,7 +47,7 @@
 @theme inline {
   --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Atkinson Hyperlegible Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
-  /* The tokens Streamdown's markup expects, mapped onto Hob's palette. */
+  /* The tokens Streamdown's markup expects, mapped onto Fennec's palette. */
   --color-background: var(--paper);
   --color-foreground: var(--soot);
   --color-muted: var(--ash);
@@ -262,7 +262,7 @@ body {
   color: var(--slate);
 }
 
-.turn-hob .speaker {
+.turn-fennec .speaker {
   color: var(--flame);
 }
 
@@ -314,56 +314,56 @@ body {
   white-space: pre-wrap;
 }
 
-.said .prose-hob > * + * {
+.said .prose-fennec > * + * {
   margin-top: 0.75em;
 }
 
-.said .prose-hob p,
-.said .prose-hob li {
+.said .prose-fennec p,
+.said .prose-fennec li {
   font-size: inherit;
   line-height: inherit;
 }
 
-.said .prose-hob h1,
-.said .prose-hob h2,
-.said .prose-hob h3,
-.said .prose-hob h4 {
+.said .prose-fennec h1,
+.said .prose-fennec h2,
+.said .prose-fennec h3,
+.said .prose-fennec h4 {
   margin: 1.1em 0 0.4em;
   font-size: 1.0625rem;
   font-weight: 760;
   letter-spacing: -0.01em;
 }
 
-.said .prose-hob h1 {
+.said .prose-fennec h1 {
   font-size: 1.25rem;
 }
 
-.said .prose-hob a {
+.said .prose-fennec a {
   color: var(--flame);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
-.said .prose-hob code {
+.said .prose-fennec code {
   font-family: var(--font-mono);
   font-size: 0.875em;
 }
 
-.said .prose-hob :not(pre) > code {
+.said .prose-fennec :not(pre) > code {
   padding: 0.05em 0.3em;
   border-radius: 4px;
   background: color-mix(in srgb, var(--slate) 14%, transparent);
 }
 
-.said .prose-hob pre {
+.said .prose-fennec pre {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   line-height: 1.55;
   white-space: pre-wrap;
 }
 
-.said .prose-hob blockquote {
+.said .prose-fennec blockquote {
   margin-left: 0;
   padding-left: 0.9rem;
   border-left: 3px solid var(--line);

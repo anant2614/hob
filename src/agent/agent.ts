@@ -37,9 +37,9 @@ function errorMessage(error: unknown): string {
 
 /**
  * One owner's agent: a Durable Object named by the server (`u:<userId>`).
- * Wiring only: the WebSocket protocol, Hob's own state, and Pi behind the
+ * Wiring only: the WebSocket protocol, Fennec's own state, and Pi behind the
  * AgentRuntime port. Pi runs the loop and keeps the transcript in its pi_*
- * tables; Hob keeps memory and taint in app_* tables in the same database.
+ * tables; Fennec keeps memory and taint in app_* tables in the same database.
  */
 export class PiAgent extends Agent<Env> {
   // The name is the owner's identity; never send it to clients.
@@ -77,26 +77,26 @@ export class PiAgent extends Agent<Env> {
       binding: this.env.AI,
       modelId: this.env.MODEL_ID,
       gatewayId: this.env.AI_GATEWAY_ID,
-      metadata: () => ({ app: "hob" })
+      metadata: () => ({ app: "fennec" })
     };
   }
 
-  /** The model's tools. None changes anything outside Hob in v0. */
+  /** The model's tools. None changes anything outside Fennec in v0. */
   protected tools(): ToolSpec[] {
     return coreTools(this.store);
   }
 
-  // The wire carries only Hob's protocol: no identity, state or MCP frames.
+  // The wire carries only Fennec's protocol: no identity, state or MCP frames.
   override shouldSendProtocolMessages(): boolean {
     return false;
   }
 
-  // Clients may not write Agent state; Hob does not use it.
+  // Clients may not write Agent state; Fennec does not use it.
   override shouldConnectionBeReadonly(): boolean {
     return true;
   }
 
-  // Hob has no sub-agents. The edge forwards only the exact /chat path, and
+  // Fennec has no sub-agents. The edge forwards only the exact /chat path, and
   // this refuses /sub/<class>/<name> routing should anything else reach here.
   override async onBeforeSubAgent(): Promise<Response> {
     return new Response("Not found", { status: 404 });

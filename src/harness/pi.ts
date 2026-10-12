@@ -23,7 +23,7 @@ import type { ToolSpec } from "../tools/spec";
 export const EVENT_FORMAT = "pi-events/1";
 
 /**
- * Hob's tools and prompt sections, as one Pi extension. Never rename it: Pi
+ * Fennec's tools and prompt sections, as one Pi extension. Never rename it: Pi
  * stores extension names with pending tasks, and tasks of an uninstalled
  * extension stall.
  */

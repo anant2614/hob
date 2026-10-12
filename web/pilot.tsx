@@ -1,14 +1,14 @@
 export type PilotState = "out" | "connecting" | "lit" | "working" | "resuming";
 
 const LABELS: Record<PilotState, string> = {
-  out: "Hob is offline",
-  connecting: "Connecting to Hob",
-  lit: "Hob is here",
-  working: "Hob is working",
-  resuming: "Hob is resuming"
+  out: "Fennec is offline",
+  connecting: "Connecting to Fennec",
+  lit: "Fennec is here",
+  working: "Fennec is working",
+  resuming: "Fennec is resuming"
 };
 
-/** Hob's pilot light: the only flourish in the interface, and its status. */
+/** Fennec's pilot light: the only flourish in the interface, and its status. */
 export function PilotLight({ state, size = 18 }: { readonly state: PilotState; readonly size?: number }) {
   return (
     <span className="pilot" data-state={state} role="img" aria-label={LABELS[state]}>

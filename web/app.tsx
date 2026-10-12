@@ -6,7 +6,7 @@ import { MemoryDrawer } from "./memory";
 import { PilotLight, type PilotState } from "./pilot";
 import { needsReload, statusText, type AppState } from "./state";
 import { formatCost, groupTurns, resultsByCall } from "./turns";
-import { useHob } from "./use-hob";
+import { useFennec } from "./use-fennec";
 
 const STARTERS = [
   "What do you remember about me?",
@@ -61,7 +61,7 @@ function NewTopicMenu({ onNewTopic, disabled }: { readonly onNewTopic: () => voi
         <div className="menu-pop" role="menu">
           {confirming ? (
             <div className="menu-confirm">
-              <p>Clear this conversation? Hob keeps its memory.</p>
+              <p>Clear this conversation? Fennec keeps its memory.</p>
               <div className="row-actions">
                 <button
                   type="button"
@@ -93,20 +93,20 @@ function NewTopicMenu({ onNewTopic, disabled }: { readonly onNewTopic: () => voi
 }
 
 export function App() {
-  const hob = useHob();
+  const fennec = useFennec();
   const [draft, setDraft] = useState("");
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [pinned, setPinned] = useState(true);
   const scroller = useRef<HTMLElement>(null);
 
-  const { view } = hob;
+  const { view } = fennec;
   const messages = useMemo(() => (view.live ? [...view.messages, view.live] : view.messages), [view.messages, view.live]);
   const turns = useMemo(() => groupTurns(messages), [messages]);
   const results = useMemo(() => resultsByCall(view.messages), [view.messages]);
   const thinking = view.running && view.live === null && view.tools.length === 0;
-  const connected = hob.status === "open";
-  const flagged = hob.memory.filter((item) => item.tainted).length;
-  const error = hob.notice ?? view.error;
+  const connected = fennec.status === "open";
+  const flagged = fennec.memory.filter((item) => item.tainted).length;
+  const error = fennec.notice ?? view.error;
 
   // Follow new output while the reader is at the bottom; leave them be if they scrolled up.
   useLayoutEffect(() => {
@@ -123,7 +123,7 @@ export function App() {
   const send = (whenBusy: "followUp" | "steer") => {
     const text = draft.trim();
     if (text === "") return;
-    if (hob.submit(text, whenBusy)) {
+    if (fennec.submit(text, whenBusy)) {
       setDraft("");
       setPinned(true);
     }
@@ -134,23 +134,23 @@ export function App() {
       <header className="topbar">
         <div className="column topbar-inner">
           <div className="brand">
-            <PilotLight state={pilotState(hob)} />
-            <span className="wordmark">hob</span>
+            <PilotLight state={pilotState(fennec)} />
+            <span className="wordmark">fennec</span>
           </div>
           <div className="topbar-actions">
             <button
               type="button"
               className="memory-btn"
               onClick={() => setMemoryOpen(true)}
-              aria-label={`Memory, ${hob.memory.length} saved${flagged > 0 ? `, ${flagged} to check` : ""}`}
-              title={flagged > 0 ? "Saved from a web page: check it. Until you keep or delete it, Hob only opens sites you name." : undefined}
+              aria-label={`Memory, ${fennec.memory.length} saved${flagged > 0 ? `, ${flagged} to check` : ""}`}
+              title={flagged > 0 ? "Saved from a web page: check it. Until you keep or delete it, Fennec only opens sites you name." : undefined}
             >
               <BookmarkSimpleIcon size={17} weight="bold" aria-hidden="true" />
               <span>Memory</span>
-              <span className="count">{hob.memory.length}</span>
+              <span className="count">{fennec.memory.length}</span>
               {flagged > 0 ? <span className="flag-dot" aria-hidden="true" /> : null}
             </button>
-            <NewTopicMenu onNewTopic={hob.newTopic} disabled={!connected} />
+            <NewTopicMenu onNewTopic={fennec.newTopic} disabled={!connected} />
           </div>
         </div>
       </header>
@@ -159,7 +159,7 @@ export function App() {
         <div className="column">
           {!turns.some((turn) => turn.kind !== "notice") && !view.running ? (
             <section className="welcome">
-              <p className="welcome-line">Tell Hob something worth remembering, or give it a link to read.</p>
+              <p className="welcome-line">Tell Fennec something worth remembering, or give it a link to read.</p>
               <div className="starters">
                 {STARTERS.map((starter) => (
                   <button key={starter} type="button" className="starter" onClick={() => setDraft(starter)}>
@@ -185,7 +185,7 @@ export function App() {
           {error ? (
             <div className="alert" role="alert">
               <p>{error}</p>
-              <button type="button" className="icon-btn" aria-label="Dismiss" onClick={hob.dismiss}>
+              <button type="button" className="icon-btn" aria-label="Dismiss" onClick={fennec.dismiss}>
                 <XIcon size={16} />
               </button>
             </div>
@@ -195,21 +195,21 @@ export function App() {
             onChange={setDraft}
             onSend={() => send("followUp")}
             onSteer={() => send("steer")}
-            onStop={hob.stop}
+            onStop={fennec.stop}
             running={view.running}
             disabled={!connected}
           />
           <div className="statusline">
             <span role="status" aria-live="polite">
-              {statusText(hob)}
+              {statusText(fennec)}
             </span>
-            {needsReload(hob) ? (
+            {needsReload(fennec) ? (
               <button type="button" className="reload" onClick={() => window.location.reload()}>
                 Reload
               </button>
             ) : null}
-            {hob.tainted ? (
-              <span className="taint" title="While this conversation includes web pages, Hob only opens sites you name yourself. A new topic clears it.">
+            {fennec.tainted ? (
+              <span className="taint" title="While this conversation includes web pages, Fennec only opens sites you name yourself. A new topic clears it.">
                 <InfoIcon size={14} weight="bold" aria-hidden="true" /> Includes web pages
               </span>
             ) : null}
@@ -222,10 +222,10 @@ export function App() {
 
       <MemoryDrawer
         open={memoryOpen}
-        items={hob.memory}
+        items={fennec.memory}
         onClose={() => setMemoryOpen(false)}
-        onSave={hob.saveMemory}
-        onDelete={hob.deleteMemory}
+        onSave={fennec.saveMemory}
+        onDelete={fennec.deleteMemory}
       />
     </div>
   );

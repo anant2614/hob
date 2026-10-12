@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/wrangler/config-schema.json",
-  "name": "hob-test",
+  "name": "fennec-test",
   "main": "worker.ts",
   // The test pool's workerd is older than production's runtime.
   "compatibility_date": "2026-07-28",
@@ -13,12 +13,12 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SqlTestObject", "PiAgent"] }],
   "vars": {
-    "TEAM_DOMAIN": "https://hob-test.cloudflareaccess.com",
+    "TEAM_DOMAIN": "https://fennec-test.cloudflareaccess.com",
     "OWNER_EMAIL": "owner@example.com",
     "OWNER_USER_ID": "usr_test",
     "OWNER_TIMEZONE": "UTC",
     "MODEL_ID": "faux/faux-1",
-    "AI_GATEWAY_ID": "hob-test",
+    "AI_GATEWAY_ID": "fennec-test",
     "ACCESS_AUD": "test-aud"
   }
 }

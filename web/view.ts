@@ -9,7 +9,7 @@ import { projectEntries, projectEntry, projectMessage, type MessagePart, type Tr
 /** A tool call running now, with its streamed output. */
 export type RunningTool = { readonly callId: string; readonly name: string; readonly output: string };
 
-export type HobView = {
+export type FennecView = {
   readonly messages: readonly TranscriptMessage[];
   /** The assistant message being streamed, or null. */
   readonly live: TranscriptMessage | null;
@@ -29,7 +29,7 @@ export type HobView = {
   readonly resuming: boolean;
 };
 
-export const EMPTY_VIEW: HobView = {
+export const EMPTY_VIEW: FennecView = {
   messages: [],
   live: null,
   running: false,
@@ -50,7 +50,7 @@ const LIVE_ID = "live";
 
 type UsageLedger = SnapshotEvent["usage"];
 
-function totalUsage(ledger: UsageLedger): HobView["usage"] {
+function totalUsage(ledger: UsageLedger): FennecView["usage"] {
   let cost = 0;
   let tokens = 0;
   for (const bucket of [ledger.models, ledger.tools]) {
@@ -71,19 +71,19 @@ function unansweredMessage(reason: string | undefined, detail: unknown): string 
     case "stale":
       return null;
     case "no_model":
-      return "Hob has no model to answer with. Check MODEL_ID in wrangler.jsonc.";
+      return "Fennec has no model to answer with. Check MODEL_ID in wrangler.jsonc.";
     case "model_error":
       return typeof detail === "string" && detail !== ""
         ? `The model call failed: ${detail}`
         : "The model call failed. Check the AI Gateway logs.";
     case undefined:
-      return "Hob couldn't answer that.";
+      return "Fennec couldn't answer that.";
     default:
-      return `Hob couldn't answer that (${reason}).`;
+      return `Fennec couldn't answer that (${reason}).`;
   }
 }
 
-function append(view: HobView, entry: EntryRecord): HobView {
+function append(view: FennecView, entry: EntryRecord): FennecView {
   const message = projectEntry(entry);
   if (!message) return view;
   // A reset starts a new context, and a snapshot shows only the active one.
@@ -134,11 +134,11 @@ function applyChanges(live: TranscriptMessage | null, changes: readonly MessageC
   return message;
 }
 
-function withCompactions(view: HobView, compactions: readonly number[]): HobView {
+function withCompactions(view: FennecView, compactions: readonly number[]): FennecView {
   return { ...view, compactions, compacting: compactions.length > 0 };
 }
 
-export function reduceView(view: HobView, event: AgentEvent | ConnectionEvent): HobView {
+export function reduceView(view: FennecView, event: AgentEvent | ConnectionEvent): FennecView {
   switch (event.type) {
     case "disconnected":
       return { ...view, resuming: view.running };
@@ -217,7 +217,7 @@ export function reduceView(view: HobView, event: AgentEvent | ConnectionEvent): 
         view.compactions.filter((id) => id !== Number(event.taskId))
       );
     case "task_failed":
-      return { ...view, error: `Something went wrong inside Hob: ${event.message}` };
+      return { ...view, error: `Something went wrong inside Fennec: ${event.message}` };
     case "submission":
       return event.record.status === "unanswered"
         ? { ...view, error: unansweredMessage(event.record.reason, event.record.detail) ?? view.error }
@@ -227,6 +227,6 @@ export function reduceView(view: HobView, event: AgentEvent | ConnectionEvent): 
   }
 }
 
-export function reduceEvents(view: HobView, events: readonly (AgentEvent | ConnectionEvent)[]): HobView {
+export function reduceEvents(view: FennecView, events: readonly (AgentEvent | ConnectionEvent)[]): FennecView {
   return events.reduce(reduceView, view);
 }

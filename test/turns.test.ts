@@ -3,7 +3,7 @@ import type { TranscriptMessage } from "../web/transcript";
 import { describeTool, formatCost, groupTurns, readableResult, resultsByCall, shortUrl, type ToolResult } from "../web/turns";
 
 const user = (id: string, text: string): TranscriptMessage => ({ id, role: "user", parts: [{ type: "text", text }], timestamp: 0 });
-const hob = (id: string, text: string): TranscriptMessage => ({ id, role: "assistant", parts: [{ type: "text", text }], timestamp: 0 });
+const fennec = (id: string, text: string): TranscriptMessage => ({ id, role: "assistant", parts: [{ type: "text", text }], timestamp: 0 });
 const call = (id: string): TranscriptMessage => ({
   id,
   role: "assistant",
@@ -23,24 +23,24 @@ function toolResult(text: string, error = false): ToolResult {
 }
 
 describe("groupTurns", () => {
-  it("keeps Hob's tool calls, results and answer together in one turn", () => {
+  it("keeps Fennec's tool calls, results and answer together in one turn", () => {
     const turns = groupTurns([
       user("1", "remember tea"),
       call("2"),
       result("3", "call-2", "Saved"),
-      hob("4", "Done."),
+      fennec("4", "Done."),
       notice("5", "New topic"),
       notice("6", ""),
       user("7", "hi")
     ]);
     expect(turns.map((turn) => [turn.kind, turn.id])).toEqual([
       ["you", "1"],
-      ["hob", "2"],
+      ["fennec", "2"],
       ["notice", "5"],
       ["you", "7"]
     ]);
-    const hobTurn = turns[1];
-    expect(hobTurn?.kind === "hob" ? hobTurn.messages.map((message) => message.id) : []).toEqual(["2", "3", "4"]);
+    const fennecTurn = turns[1];
+    expect(fennecTurn?.kind === "fennec" ? fennecTurn.messages.map((message) => message.id) : []).toEqual(["2", "3", "4"]);
   });
 
   it("finds each result by the call it answers", () => {

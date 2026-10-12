@@ -1,6 +1,6 @@
 import type { AgentEvent } from "@earendil-works/pi-durable";
 import type { MemoryItem, ServerMessage, ToolInfo } from "../src/shared/protocol";
-import { EMPTY_VIEW, reduceEvents, reduceView, type HobView } from "./view";
+import { EMPTY_VIEW, reduceEvents, reduceView, type FennecView } from "./view";
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting";
 
@@ -11,7 +11,7 @@ export type AppState = {
   readonly tools: readonly ToolInfo[];
   readonly memory: readonly MemoryItem[];
   readonly tainted: boolean;
-  readonly view: HobView;
+  readonly view: FennecView;
   /** The latest error the agent sent back, until dismissed. */
   readonly notice: string | null;
   /** Sockets closed since the last one opened: failed reconnects, once it is more than one. */
@@ -86,7 +86,7 @@ export function needsReload(state: AppState): boolean {
 /** One sentence about what is happening, most important first. */
 export function statusText(state: AppState): string {
   const { view } = state;
-  if (needsReload(state)) return "Can't reach Hob. If you were signed out, reload to sign in again.";
+  if (needsReload(state)) return "Can't reach Fennec. If you were signed out, reload to sign in again.";
   if (state.status === "connecting") return "Connecting…";
   if (state.status === "reconnecting") return view.running ? "Connection lost. Reconnecting…" : "Reconnecting…";
   if (view.resuming) return "Resuming the answer that was cut off…";

@@ -3,7 +3,7 @@ import { normalizeHost } from "../tools/hosts";
 
 export type { MemoryItem };
 
-// Hob's own state, in `app_*` tables beside Pi's `pi_*` tables in the same
+// Fennec's own state, in `app_*` tables beside Pi's `pi_*` tables in the same
 // Durable Object database. Nothing here depends on the harness, so it survives
 // a harness swap unchanged.
 

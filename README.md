@@ -1,8 +1,8 @@
-# Hob
+# Fennec
 
-Hob is a private assistant for one person, running on Cloudflare. You chat with it from your laptop or phone. It streams its answers, remembers facts you tell it, and reads web pages you point it at. [Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) runs the agent loop inside a Durable Object, so a crash or a deploy in the middle of an answer picks up where it stopped.
+Fennec is a private assistant for one person, running on Cloudflare. You chat with it from your laptop or phone. It streams its answers, remembers facts you tell it, and reads web pages you point it at. [Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) runs the agent loop inside a Durable Object, so a crash or a deploy in the middle of an answer picks up where it stopped.
 
-This is **v0** from [`docs/blueprint.md`](docs/blueprint.md) (section 3): a web chat with three tools, `remember`, `forget` and `read_page`. None of them changes anything outside Hob, so v0 needs no approval step. The build plan is in [`docs/superpowers/plans/2026-10-07-hob-v0.md`](docs/superpowers/plans/2026-10-07-hob-v0.md).
+This is **v0** from [`docs/blueprint.md`](docs/blueprint.md) (section 3): a web chat with three tools, `remember`, `forget` and `read_page`. None of them changes anything outside Fennec, so v0 needs no approval step. The build plan is in [`docs/superpowers/plans/2026-10-07-hob-v0.md`](docs/superpowers/plans/2026-10-07-hob-v0.md).
 
 ## Try it locally, without a Cloudflare account
 
@@ -13,7 +13,7 @@ pnpm demo
 
 Open the URL Vite prints. The demo runs the real Worker, agent and web app on a scripted model instead of a real one, so it costs nothing. The scripted model answers:
 
-| You type | Hob does |
+| You type | Fennec does |
 | --- | --- |
 | `remember coffee: Flat white, oat milk` | saves a memory (watch the Memory button) |
 | `forget coffee` | deletes it |
@@ -26,7 +26,7 @@ Needs Node 22.19 or later and pnpm (`corepack enable` gives you the pinned versi
 
 ## Deploy your own
 
-You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudflare, because Hob sits behind a hostname-based Access application.
+You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudflare, because Fennec sits behind a hostname-based Access application.
 
 1. **Choose a hostname**, for example `agent.example.com`. In [`wrangler.jsonc`](wrangler.jsonc), uncomment `routes` and put it there. `workers_dev` and `preview_urls` stay off, so the protected hostname is the only way in.
 
@@ -39,9 +39,9 @@ You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudfl
    | `TEAM_DOMAIN` | `https://<your-team>.cloudflareaccess.com` |
    | `OWNER_EMAIL` | the email Access lets in |
    | `OWNER_USER_ID` | an opaque id; make one with `node -e "console.log('usr_' + crypto.randomUUID())"`. It names your Durable Object, so set it once and never change it. |
-   | `OWNER_TIMEZONE` | e.g. `Europe/London`, for the date Hob sees |
+   | `OWNER_TIMEZONE` | e.g. `Europe/London`, for the date Fennec sees |
    | `MODEL_ID` | `anthropic/claude-opus-5-5` by default (see [Models](#models)) |
-   | `AI_GATEWAY_ID` | the AI Gateway Hob's model calls go through, `hob` by default |
+   | `AI_GATEWAY_ID` | the AI Gateway Fennec's model calls go through, `fennec` by default |
 
    After changing `wrangler.jsonc`, run `pnpm types` to refresh `src/worker-configuration.d.ts`.
 
@@ -63,9 +63,9 @@ You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudfl
 
 ### Models
 
-`MODEL_ID` is a model id from pi-ai's Cloudflare AI Gateway catalog, written `<provider>/<model>` with **hyphens, not dots**: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `anthropic/claude-fable-5-1`. A Workers AI id such as `@cf/zai-org/glm-5.3-flash` works too, as a cheap fallback. Change it and redeploy; on its next start Hob moves the conversation to the new model. An id the catalog doesn't know is logged at startup, and the answer fails with that error in the UI.
+`MODEL_ID` is a model id from pi-ai's Cloudflare AI Gateway catalog, written `<provider>/<model>` with **hyphens, not dots**: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `anthropic/claude-fable-5-1`. A Workers AI id such as `@cf/zai-org/glm-5.3-flash` works too, as a cheap fallback. Change it and redeploy; on its next start Fennec moves the conversation to the new model. An id the catalog doesn't know is logged at startup, and the answer fails with that error in the UI.
 
-Hob asks for thinking effort "low". On Opus 5.5, pi-ai turns that into adaptive thinking at low effort; Opus 5.5 can't have thinking switched off.
+Fennec asks for thinking effort "low". On Opus 5.5, pi-ai turns that into adaptive thinking at low effort; Opus 5.5 can't have thinking switched off.
 
 ### Local development against real models
 
@@ -115,7 +115,7 @@ flowchart LR
     H["Agent host: WebSocket protocol,\nwatches, memory, taint"]
     P["Policy + ToolSpecs\nremember · forget · read_page"]
     R["src/harness/pi.ts\nPiHarness: loop, wake job"]
-    S[("SQLite: pi_* (Pi)\napp_* (Hob)")]
+    S[("SQLite: pi_* (Pi)\napp_* (Fennec)")]
   end
   G["AI Gateway → Anthropic"]
   B -- "WSS /chat" --> A --> H
@@ -129,7 +129,7 @@ flowchart LR
 | --- | --- |
 | `src/worker.ts`, `src/auth/` | The stateless edge. It authenticates, strips headers the SDK would trust, and routes to the object whose name the server derives. `agentName()` is the only code that builds object names. |
 | `src/agent/agent.ts` | `PiAgent extends Agent`. Wiring only: the WebSocket protocol, re-watching sockets after a restart, and pushing memory and taint changes. |
-| `src/agent/store.ts` | Hob's own state in `app_memory`, `app_conversation`, `app_owner_host` and `app_meta` (the schema version and the last model applied), beside Pi's `pi_*` tables. |
+| `src/agent/store.ts` | Fennec's own state in `app_memory`, `app_conversation`, `app_owner_host` and `app_meta` (the schema version and the last model applied), beside Pi's `pi_*` tables. |
 | `src/agent/runtime.ts` | The harness port (`submit`, `wait`, `abort`, `reset`, events). |
 | `src/harness/pi.ts` | **The only module that imports Pi.** It opens `PiHarness`, compiles `ToolSpec`s into Pi tools, and wires the model through `createAI` and AI Gateway. |
 | `src/tools/` | Harness-neutral tools and the `Policy` every call goes through. |
@@ -145,12 +145,12 @@ Every deploy and every `wrangler secret put` restarts the Durable Object mid-ans
 ## Security model
 
 - **One owner.** A hostname-based Access application sits in front of everything. The Worker checks the `Cf-Access-Jwt-Assertion` itself: RS256, issuer, audience, and the owner's email. It caches the key set at module scope. The Durable Object is named from an internal id, never from anything the client sends.
-- **Nothing the SDK trusts gets through from a client.** The edge removes the `x-agents-*`, `x-cf-agents-*` and `x-partykit-*` header families, plus credentials. It forwards only the exact path `/chat`, because the SDK routes `/chat/sub/<class>/<name>` to child objects, and the object refuses that routing too. It refuses WebSocket handshakes from other origins. Connections are read-only for Agent state, Hob exposes no `@callable` methods, and SDK identity and state frames are off.
+- **Nothing the SDK trusts gets through from a client.** The edge removes the `x-agents-*`, `x-cf-agents-*` and `x-partykit-*` header families, plus credentials. It forwards only the exact path `/chat`, because the SDK routes `/chat/sub/<class>/<name>` to child objects, and the object refuses that routing too. It refuses WebSocket handshakes from other origins. Connections are read-only for Agent state, Fennec exposes no `@callable` methods, and SDK identity and state frames are off.
 - **No outside effects in v0.** The policy refuses any tool marked as a side effect, and v0 has none.
 - **Web pages are untrusted.** `read_page` output is wrapped in `<untrusted source="…">`, and the wrapper can't be closed from inside. Reading a page marks the conversation, and the status line shows "Includes web pages".
-  - From then on, Hob only opens hosts you named in your own messages: exactly those hosts, not their subdomains. Every redirect is checked against the same rule. This stops a page from steering Hob into sending your memory somewhere else.
+  - From then on, Fennec only opens hosts you named in your own messages: exactly those hosts, not their subdomains. Every redirect is checked against the same rule. This stops a page from steering Fennec into sending your memory somewhere else.
   - A memory saved in such a conversation is flagged for you to keep or delete. Until you do, it counts as web content too, even after New topic.
-  - While web content is in play, Hob can add flagged memories, but it can't change or delete confirmed ones.
+  - While web content is in play, Fennec can add flagged memories, but it can't change or delete confirmed ones.
   - **New topic** clears the conversation's mark.
 - **`read_page` limits.**
   - It reads http(s) only. It never reads IP addresses, localhost, internal names, or URLs with credentials.
@@ -173,11 +173,11 @@ Known gaps until v1's approvals:
 | Criterion | Where it stands |
 | --- | --- |
 | 1. Used every day for a week | Yours to do. |
-| 2. A deploy mid-turn recovers on its own, and the UI shows "resuming…" | Recovery is tested: `test/agent.test.ts` crashes the object mid-tool and the answer finishes. `test/e2e/browser-check.cjs` kills the demo server mid-tool and watches the UI go from "Connection lost" to "Resuming the answer that was cut off…". To check for real, run `pnpm run deploy` while Hob is answering. |
+| 2. A deploy mid-turn recovers on its own, and the UI shows "resuming…" | Recovery is tested: `test/agent.test.ts` crashes the object mid-tool and the answer finishes. `test/e2e/browser-check.cjs` kills the demo server mid-tool and watches the UI go from "Connection lost" to "Resuming the answer that was cut off…". To check for real, run `pnpm run deploy` while Fennec is answering. |
 | 3. The transcript and memories survive eviction | Tested (`test/agent.test.ts`). |
 | 4. Every tool honours `abortSignal` | Tested for `read_page` and for a blocking tool; Stop is in the UI. |
 | 5. A 200+ turn conversation goes through compaction without running out of memory | Pi compacts by default, and the UI shows "Summarising older messages…". Needs real use: Cloudflare hasn't tested compaction on Durable Objects. See [Known limitations](#known-limitations). |
-| 6. Cost per request is visible in AI Gateway | Every request goes through `AI_GATEWAY_ID` with metadata `{ app: "hob" }`. The status line also shows the conversation's spend from Pi's usage ledger. |
+| 6. Cost per request is visible in AI Gateway | Every request goes through `AI_GATEWAY_ID` with metadata `{ app: "fennec" }`. The status line also shows the conversation's spend from Pi's usage ledger. |
 | 7. Exact pins, with overrides for their dependencies | `agents@0.26.0`, `@earendil-works/pi-durable@1.0.4` and `@earendil-works/pi-ai@1.0.4` are pinned, and `pnpm.overrides` pins `chord`, `pi-ai` and `pi-telemetry`. The lockfile is committed. |
 
 ## Checked against the real packages
