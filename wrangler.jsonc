@@ -13,7 +13,7 @@
   "ai": { "binding": "AI", "remote": true },
   "assets": {
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/chat", "/chat/*"]
+    "run_worker_first": ["/chat", "/chat/*", "/hooks/telegram"]
   },
   "durable_objects": {
     "bindings": [{ "name": "PiAgent", "class_name": "PiAgent" }]
@@ -41,6 +41,8 @@
     "AI_GATEWAY_ID": "fennec"
   },
   // The audience (AUD) tag of the Access application: `wrangler secret put ACCESS_AUD`.
+  // Telegram is optional and off until scripts/telegram-setup.sh sets TELEGRAM_BOT_TOKEN,
+  // TELEGRAM_WEBHOOK_SECRET and TELEGRAM_OWNER_ID as secrets (see src/env.d.ts).
   "secrets": { "required": ["ACCESS_AUD"] },
   "observability": {
     "enabled": true,

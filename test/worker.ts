@@ -9,7 +9,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { DurableObject } from "cloudflare:workers";
 import type { Connection, ConnectionContext } from "agents";
-import { PiAgent as FennecAgent } from "../src/agent/agent";
+import { PiAgent as FennecAgent, type TelegramTiming } from "../src/agent/agent";
 import type { ModelSource } from "../src/harness/pi";
 import { coreTools } from "../src/tools";
 import type { ToolSpec } from "../src/tools/spec";
@@ -25,6 +25,10 @@ export const CONNECT_HEADERS = "test:connect:headers";
 export const TEST_MODEL = "test:model";
 /** How many times the agent has run syncModel. */
 export const SYNC_RUNS = "test:sync:runs";
+/** Every message the agent sent to the fake Telegram Bot API. */
+export const TELEGRAM_SENT = "test:telegram:sent";
+
+export type SentTelegram = { readonly url: string; readonly chatId: string; readonly text: string };
 
 function textOf(content: Message["content"] | undefined): string {
   if (content === undefined) return "";
@@ -111,6 +115,22 @@ export class PiAgent extends FennecAgent {
 
   protected override tools(): ToolSpec[] {
     return [...coreTools(this.store, { fetch: fakeWeb }), gateTool(this.ctx.storage)];
+  }
+
+  /** The Telegram Bot API, as far as tests are concerned: it records what it's sent. */
+  protected override telegramFetch(): typeof fetch {
+    const storage = this.ctx.storage;
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { chat_id: string; text: string };
+      const sent = storage.kv.get<SentTelegram[]>(TELEGRAM_SENT) ?? [];
+      storage.kv.put(TELEGRAM_SENT, [...sent, { url: String(input), chatId: String(body.chat_id), text: body.text }]);
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+  }
+
+  /** Check for answers every second, so the tests don't wait on production's pace. */
+  protected override telegramTiming(): TelegramTiming {
+    return { ...super.telegramTiming(), firstCheckSeconds: 1, recheckSeconds: 1, waitMs: 500 };
   }
 
   override async onConnect(connection: Connection, ctx: ConnectionContext): Promise<void> {

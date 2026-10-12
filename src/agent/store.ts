@@ -51,11 +51,34 @@ const SCHEMA = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`,
+  // Replies owed on channels other than the web app, keyed by the operation id
+  // the message was submitted with, so a redelivered message owes one reply.
+  `CREATE TABLE IF NOT EXISTS app_outbox (
+    op TEXT PRIMARY KEY,
+    channel TEXT NOT NULL,
+    target TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  )`,
   // The version of the app_* tables, for the first migration to read.
   `INSERT OR IGNORE INTO app_meta (key, value) VALUES ('schema', '1')`
 ];
 
 type MemoryRow = { key: string; text: string; source: string; tainted: number; updated_at: number };
+
+export type OutboxItem = {
+  readonly op: string;
+  readonly channel: "telegram";
+  /** Where the reply goes: a Telegram chat id. */
+  readonly target: string;
+  readonly status: "pending" | "sent" | "failed";
+  /** Failed send attempts so far. */
+  readonly attempts: number;
+  readonly createdAt: number;
+};
+
+type OutboxRow = { op: string; channel: string; target: string; status: string; attempts: number; created_at: number };
 
 function toItem(row: MemoryRow): MemoryItem {
   return {
@@ -183,6 +206,48 @@ export class AppStore {
         value
       );
     }
+  };
+
+  /** Replies owed on other channels. A row is created once per operation and never re-opened. */
+  readonly outbox = {
+    /** Owe a reply for `op`. False when one is already owed or settled, e.g. a redelivered message. */
+    add: (op: string, channel: OutboxItem["channel"], target: string): boolean =>
+      this.#sql.exec(
+        "INSERT OR IGNORE INTO app_outbox (op, channel, target, created_at) VALUES (?, ?, ?, ?)",
+        op,
+        channel,
+        target,
+        Date.now()
+      ).rowsWritten > 0,
+
+    get: (op: string): OutboxItem | undefined => {
+      const row = this.#sql
+        .exec<OutboxRow>("SELECT op, channel, target, status, attempts, created_at FROM app_outbox WHERE op = ?", op)
+        .toArray()[0];
+      if (row === undefined) return undefined;
+      return {
+        op: row.op,
+        channel: "telegram",
+        target: row.target,
+        status: row.status === "sent" ? "sent" : row.status === "failed" ? "failed" : "pending",
+        attempts: row.attempts,
+        createdAt: row.created_at
+      };
+    },
+
+    markSent: (op: string): void => {
+      this.#sql.exec("UPDATE app_outbox SET status = 'sent' WHERE op = ?", op);
+    },
+
+    markFailed: (op: string): void => {
+      this.#sql.exec("UPDATE app_outbox SET status = 'failed' WHERE op = ?", op);
+    },
+
+    /** Count a failed send. Returns the attempts so far. */
+    recordFailedSend: (op: string): number =>
+      this.#sql
+        .exec<{ attempts: number }>("UPDATE app_outbox SET attempts = attempts + 1 WHERE op = ? RETURNING attempts", op)
+        .toArray()[0]?.attempts ?? 0
   };
 
   readonly conversations = {

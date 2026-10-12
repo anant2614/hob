@@ -19,6 +19,9 @@
     "OWNER_TIMEZONE": "UTC",
     "MODEL_ID": "faux/faux-1",
     "AI_GATEWAY_ID": "fennec-test",
-    "ACCESS_AUD": "test-aud"
+    "ACCESS_AUD": "test-aud",
+    "TELEGRAM_OWNER_ID": "4242",
+    "TELEGRAM_WEBHOOK_SECRET": "test-telegram-secret",
+    "TELEGRAM_BOT_TOKEN": "test-bot-token"
   }
 }
