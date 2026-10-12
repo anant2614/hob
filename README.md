@@ -1,8 +1,8 @@
 # Fennec
 
-Fennec is a private assistant for one person, running on Cloudflare. You chat with it from your laptop or phone. It streams its answers, remembers facts you tell it, and reads web pages you point it at. [Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) runs the agent loop inside a Durable Object, so a crash or a deploy in the middle of an answer picks up where it stopped.
+Fennec is a private assistant for one person, running on Cloudflare. You chat with it from your laptop or phone, in the web app or on Telegram. It streams its answers, remembers facts you tell it, and reads web pages you point it at. [Pi Durable](https://github.com/earendil-works/pi/tree/main/packages/durable) runs the agent loop inside a Durable Object, so a crash or a deploy in the middle of an answer picks up where it stopped.
 
-This is **v0** from [`docs/blueprint.md`](docs/blueprint.md) (section 3): a web chat with three tools, `remember`, `forget` and `read_page`. None of them changes anything outside Fennec, so v0 needs no approval step. The build plan is in [`docs/superpowers/plans/2026-10-07-hob-v0.md`](docs/superpowers/plans/2026-10-07-hob-v0.md).
+This is **v0** from [`docs/blueprint.md`](docs/blueprint.md) (section 3): a web chat with three tools, `remember`, `forget` and `read_page`, plus v1's first item, the Telegram channel. None of the tools changes anything outside Fennec, so v0 needs no approval step. Fennec was called Hob until 12 October 2026; the blueprint and the build plan in [`docs/superpowers/plans/2026-10-07-hob-v0.md`](docs/superpowers/plans/2026-10-07-hob-v0.md) still use that name.
 
 ## Try it locally, without a Cloudflare account
 
@@ -26,7 +26,9 @@ Needs Node 22.19 or later and pnpm (`corepack enable` gives you the pinned versi
 
 ## Deploy your own
 
-You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudflare, because Fennec sits behind a hostname-based Access application.
+You need a Cloudflare account and a domain on Cloudflare, because Fennec sits behind a hostname-based Access application. **Workers Free is enough:** a Pi agent on a Free account ran end to end on 9 October 2026, with Durable Object alarms using up to 367 ms of CPU and none stopped at Workers Free's 10 ms figure. With the default model, the whole stack costs nothing within the free daily allowances (100,000 requests, 10,000 Workers AI neurons, 13,000 GB-s of Durable Object time). Access is free for up to 50 users.
+
+If the Free-plan spike's Worker, also named `fennec`, is still on your account, delete it first (`pnpm exec wrangler delete fennec`): its Durable Object class is `Fennec`, this one's is `PiAgent`, and both use migration tag `v1`, so deploying over it fails.
 
 1. **Choose a hostname**, for example `agent.example.com`. In [`wrangler.jsonc`](wrangler.jsonc), uncomment `routes` and put it there. `workers_dev` and `preview_urls` stay off, so the protected hostname is the only way in.
 
@@ -40,12 +42,12 @@ You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudfl
    | `OWNER_EMAIL` | the email Access lets in |
    | `OWNER_USER_ID` | an opaque id; make one with `node -e "console.log('usr_' + crypto.randomUUID())"`. It names your Durable Object, so set it once and never change it. |
    | `OWNER_TIMEZONE` | e.g. `Europe/London`, for the date Fennec sees |
-   | `MODEL_ID` | `anthropic/claude-opus-5-5` by default (see [Models](#models)) |
-   | `AI_GATEWAY_ID` | the AI Gateway Fennec's model calls go through, `fennec` by default |
+   | `MODEL_ID` | `@cf/zai-org/glm-4.7-flash` by default, free on Workers AI (see [Models](#models)) |
+   | `AI_GATEWAY_ID` | the AI Gateway Fennec's model calls go through, `default` by default |
 
-   After changing `wrangler.jsonc`, run `pnpm types` to refresh `src/worker-configuration.d.ts`.
+   After changing `wrangler.jsonc`, run `pnpm types` to refresh `src/worker-configuration.d.ts`. This repository is public: if you commit your own `OWNER_EMAIL` and `TEAM_DOMAIN`, they become public too.
 
-4. **Set up AI Gateway.** Create a gateway with the id from `AI_GATEWAY_ID` and turn on Unified Billing with some credits, so Claude works without a provider key in the Worker. **Set a spend limit on the gateway.** It is v0's only guard against a runaway tool loop. Leave logging on: it is where you see the cost of each request. It also stores full prompts, so decide whether that is acceptable for you.
+4. **AI Gateway.** With `AI_GATEWAY_ID` set to `default`, there's nothing to set up: AI Gateway creates that gateway on the first request. Any other id has to be created in the dashboard first, or every answer fails with "Please configure AI Gateway in the Cloudflare dashboard". To use Claude, turn on Unified Billing with some credits, so it works without a provider key in the Worker, and **set a spend limit on the gateway**: it is v0's only guard against a runaway tool loop. On the free model, Workers AI's daily allowance is the limit. Leave logging on: it is where you see each request. It also stores full prompts, so decide whether that is acceptable for you.
 
 5. **Deploy, with the secret.** `ACCESS_AUD` is a required secret, and `wrangler secret put` can't set one on a Worker that doesn't exist yet, so the first deploy carries it in a file:
 
@@ -61,9 +63,24 @@ You need a Cloudflare account on Workers Paid ($5/month) and a domain on Cloudfl
 
 6. Open `https://agent.example.com`, sign in through Access, and say hello. On a phone, "Add to Home Screen" gives you an app icon.
 
+### Telegram
+
+Optional. Fennec answers one Telegram user, you, in the same conversation as the web app. Telegram shows plain text.
+
+1. **Let Telegram past Access.** In Zero Trust, add a second self-hosted application for exactly `agent.example.com/hooks/telegram`, with a **Bypass** policy for everyone. The Worker checks Telegram's secret header and your Telegram user id itself.
+2. **Create a bot.** Message @BotFather in Telegram, send `/newbot`, and keep the token it gives you.
+3. **Connect it**, after the first deploy: `scripts/telegram-setup.sh https://agent.example.com`. It asks for the token without echoing it, finds your user id from one message you send the bot, and stores the token, your id and a fresh webhook secret as Worker secrets. Nothing is written to the repo.
+
+How a message travels: the edge verifies the webhook and hands it to the agent, which submits it to Pi with the update id as the operation id. Telegram resends unanswered updates, and a resent one is submitted once. The reply is owed in `app_outbox`. A scheduled check sends it once the run settles: it waits up to 5 s per check, then checks again every 5 s, and gives up after 20 minutes. The check clears its timer as soon as the answer is in, because a pending timer keeps the Durable Object awake. A failed send is retried up to 5 times.
+
 ### Models
 
-`MODEL_ID` is a model id from pi-ai's Cloudflare AI Gateway catalog, written `<provider>/<model>` with **hyphens, not dots**: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `anthropic/claude-fable-5-1`. A Workers AI id such as `@cf/zai-org/glm-5.3-flash` works too, as a cheap fallback. Change it and redeploy; on its next start Fennec moves the conversation to the new model. An id the catalog doesn't know is logged at startup, and the answer fails with that error in the UI.
+`MODEL_ID` is a Workers AI id or a model id from pi-ai's Cloudflare AI Gateway catalog.
+
+- **`@cf/zai-org/glm-4.7-flash`** (default) runs on Workers AI's free allowance, even on Workers Free: about 150–300 model calls a day. It supports tool calling. Don't pick `@cf/zai-org/glm-5.3-flash`, Kimi or DeepSeek V4: they need paid billing.
+- **Claude** through AI Gateway is far stronger: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `anthropic/claude-fable-5-1`, written with **hyphens, not dots**. It needs AI Gateway credits (step 4).
+
+Change it and redeploy; on its next start Fennec moves the conversation to the new model. An id the catalog doesn't know is logged at startup, and the answer fails with that error in the UI.
 
 Fennec asks for thinking effort "low". On Opus 5.5, pi-ai turns that into adaptive thinking at low effort; Opus 5.5 can't have thinking switched off.
 
@@ -75,7 +92,7 @@ pnpm exec wrangler login
 pnpm dev
 ```
 
-The AI binding has no local simulation, so `pnpm dev` calls the real models and **spends real money**. Access isn't in front of localhost, so a development build lets requests through when the hostname is `localhost`, `127.0.0.1` or `[::1]`. The switch is Vite's `import.meta.env.DEV`, which `vite build` compiles to `false`: production has no bypass to turn on.
+The AI binding has no local simulation, so `pnpm dev` calls the real model: free within Workers AI's daily allowance on the default model, **real money** on Claude. Access isn't in front of localhost, so a development build lets requests through when the hostname is `localhost`, `127.0.0.1` or `[::1]`. The switch is Vite's `import.meta.env.DEV`, which `vite build` compiles to `false`: production has no bypass to turn on.
 
 ## Tests
 
@@ -117,7 +134,8 @@ flowchart LR
     R["src/harness/pi.ts\nPiHarness: loop, wake job"]
     S[("SQLite: pi_* (Pi)\napp_* (Fennec)")]
   end
-  G["AI Gateway → Anthropic"]
+  G["AI Gateway → Workers AI (default) or Anthropic"]
+  T["Telegram"] -- "POST /hooks/telegram\nsecret + owner id" --> H
   B -- "WSS /chat" --> A --> H
   H --> R --> G
   R -- "tool calls" --> P
@@ -128,8 +146,9 @@ flowchart LR
 | Path | Responsibility |
 | --- | --- |
 | `src/worker.ts`, `src/auth/` | The stateless edge. It authenticates, strips headers the SDK would trust, and routes to the object whose name the server derives. `agentName()` is the only code that builds object names. |
-| `src/agent/agent.ts` | `PiAgent extends Agent`. Wiring only: the WebSocket protocol, re-watching sockets after a restart, and pushing memory and taint changes. |
-| `src/agent/store.ts` | Fennec's own state in `app_memory`, `app_conversation`, `app_owner_host` and `app_meta` (the schema version and the last model applied), beside Pi's `pi_*` tables. |
+| `src/channels/telegram.ts` | The Telegram webhook: secret check, owner check, update parsing, and sending replies in 4,096-character pieces. |
+| `src/agent/agent.ts` | `PiAgent extends Agent`. Wiring only: the WebSocket protocol, re-watching sockets after a restart, pushing memory and taint changes, and Telegram's receive and scheduled reply. |
+| `src/agent/store.ts` | Fennec's own state in `app_memory`, `app_conversation`, `app_owner_host`, `app_outbox` (replies owed on Telegram) and `app_meta` (the schema version and the last model applied), beside Pi's `pi_*` tables. |
 | `src/agent/runtime.ts` | The harness port (`submit`, `wait`, `abort`, `reset`, events). |
 | `src/harness/pi.ts` | **The only module that imports Pi.** It opens `PiHarness`, compiles `ToolSpec`s into Pi tools, and wires the model through `createAI` and AI Gateway. |
 | `src/tools/` | Harness-neutral tools and the `Policy` every call goes through. |
@@ -146,6 +165,7 @@ Every deploy and every `wrangler secret put` restarts the Durable Object mid-ans
 
 - **One owner.** A hostname-based Access application sits in front of everything. The Worker checks the `Cf-Access-Jwt-Assertion` itself: RS256, issuer, audience, and the owner's email. It caches the key set at module scope. The Durable Object is named from an internal id, never from anything the client sends.
 - **Nothing the SDK trusts gets through from a client.** The edge removes the `x-agents-*`, `x-cf-agents-*` and `x-partykit-*` header families, plus credentials. It forwards only the exact path `/chat`, because the SDK routes `/chat/sub/<class>/<name>` to child objects, and the object refuses that routing too. It refuses WebSocket handshakes from other origins. Connections are read-only for Agent state, Fennec exposes no `@callable` methods, and SDK identity and state frames are off.
+- **Telegram is the one path that skips Access.** Access bypasses only `/hooks/telegram`. There, the Worker compares Telegram's `X-Telegram-Bot-Api-Secret-Token` header with the webhook secret in constant time, ignores every sender but `TELEGRAM_OWNER_ID`, and routes to the owner's object by the same `agentName()`. With any of the secrets unset, the path answers 404. Messages from Telegram count as the owner's own, so sites named there may be visited while the conversation is tainted, as on the web.
 - **No outside effects in v0.** The policy refuses any tool marked as a side effect, and v0 has none.
 - **Web pages are untrusted.** `read_page` output is wrapped in `<untrusted source="…">`, and the wrapper can't be closed from inside. Reading a page marks the conversation, and the status line shows "Includes web pages".
   - From then on, Fennec only opens hosts you named in your own messages: exactly those hosts, not their subdomains. Every redirect is checked against the same rule. This stops a page from steering Fennec into sending your memory somewhere else.
@@ -193,6 +213,8 @@ The blueprint marked many claims as unverified. Building v0 against the pinned r
 - **`web_search` waits for the next `agents` release.** Its tool (`agents/websearch`, Cloudflare's Web Search API) exists only on the agents main branch.
 - **`.dev.vars` and `secrets.required` don't mix.** Once a `secrets` block exists, wrangler 4.148 loads only the `.dev.vars` keys it declares, so the blueprint's `DEV_AUTH` variable would never reach `pnpm dev`. The bypass is gated on Vite's `import.meta.env.DEV` instead, which is just as absent from production. For the same reason, the first deploy of a new Worker has to carry the secret with `--secrets-file`.
 - **Pi keeps only the first 50 KB or 2,000 lines of a tool result**, so `read_page` budgets its text in bytes and lines, with room left for its label.
+- **Only the `default` AI Gateway creates itself.** A model call through a gateway id that doesn't exist fails with "Please configure AI Gateway in the Cloudflare dashboard", which is why `AI_GATEWAY_ID` defaults to `default`.
+- **GLM-4.7-Flash works with Fennec's settings.** Against the real model through `pnpm dev`: thinking "low" is accepted, tool calls work (`remember` saved a memory), and short answers took 1.6–6.6 s.
 - **HTMLRewriter didn't fit hostile pages.** It calls into JavaScript once per text chunk, so 2 MB of `<` took 13 s, and deep nesting hits its memory limit. `read_page` uses a single-pass scanner instead.
 
 ## Known limitations
@@ -203,7 +225,7 @@ The blueprint marked many claims as unverified. Building v0 against the pinned r
 
 ## Next (v1 in the blueprint)
 
-- Telegram with a reply outbox, and reminders with `this.schedule`
+- Reminders with `this.schedule`, delivered through the Telegram outbox
 - Approve-then-host-executes for tools with side effects
 - MCP integrations
 - `web_search` once `agents/websearch` is released
